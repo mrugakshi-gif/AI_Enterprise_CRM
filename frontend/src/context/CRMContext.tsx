@@ -242,7 +242,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sub_title: data.sub_title || 'General',
         status: data.status || 'In progress',
         priority: data.priority || 'Normal',
-        due_date: data.due_date || '20 Aug 2026',
+        due_date: data.due_date || new Date(Date.now() + 3 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' '),
         assigned_to: data.assigned_to || 'Amit Sharma',
         comments_count: 0,
         created_date: 'Today'

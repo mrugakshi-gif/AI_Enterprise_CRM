@@ -39,7 +39,7 @@ export const QuickCreateModal: React.FC<QuickCreateModalProps> = ({
     company_name: '',
     deal_value: 400000,
     stage: 'Contacted' as DealStage,
-    expected_close_date: '30 Sep 2026',
+    expected_close_date: new Date(Date.now() + 30 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' '),
     owner: 'Amit Sharma',
     priority: 'Normal' as Priority,
     description: ''
@@ -50,7 +50,7 @@ export const QuickCreateModal: React.FC<QuickCreateModalProps> = ({
     customer_name: '',
     priority: 'Normal' as Priority,
     status: 'In progress' as TaskStatus,
-    due_date: '24 Aug 2026',
+    due_date: new Date(Date.now() + 5 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' '),
     assigned_to: 'Amit Sharma',
     description: ''
   });

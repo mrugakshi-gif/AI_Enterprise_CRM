@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from backend.database import db
 from backend.models import (
     Lead, Contact, Company, Deal, Task, Activity, CalendarEvent,
@@ -201,7 +201,7 @@ def create_lead(req: CreateLeadRequest):
         "lead_value": req.lead_value,
         "assigned_to": req.assigned_to,
         "assigned_to_id": None,
-        "expected_closing": req.expected_closing or "30 Sep 2026",
+        "expected_closing": req.expected_closing or (datetime.now() + timedelta(days=30)).strftime("%d %b %Y"),
         "notes": req.notes,
         "created_at": datetime.now().strftime("%d %b %Y"),
         "last_contact": "Today",
@@ -340,7 +340,7 @@ def convert_lead(lead_id: str, payload: Dict[str, Any]):
         "description": payload.get("description", lead.get("notes", "Converted from lead")),
         "deal_value": float(payload.get("deal_value", lead.get("lead_value", 300000))),
         "stage": payload.get("stage", "Qualified"),
-        "expected_close_date": payload.get("expected_close_date", lead.get("expected_closing", "30 Sep 2026")),
+        "expected_close_date": payload.get("expected_close_date", lead.get("expected_closing", (datetime.now() + timedelta(days=30)).strftime("%d %b %Y"))),
         "owner": lead.get("assigned_to", "Amit Sharma"),
         "owner_id": lead.get("assigned_to_id"),
         "priority": payload.get("priority", "Normal"),
@@ -909,3 +909,40 @@ def create_event(req: CreateEventRequest):
     )
 
     return new_event
+
+@router.put("/events/{event_id}")
+def update_event(event_id: str, updates: Dict[str, Any]):
+    event = next((e for e in db.events if e["id"] == event_id), None)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    old_date = event.get("date")
+    old_time = event.get("time")
+    event.update(updates)
+
+    db.add_audit_log(
+        user_name=event.get("attendees", ["System"])[0] if event.get("attendees") else "System",
+        user_role="SALES_EXECUTIVE",
+        action="Updated / Rescheduled Event",
+        entity=event.get("title", event_id),
+        entity_id=event_id,
+        details=f"Updated to Date: {event.get('date')} {event.get('time')} (Previous: {old_date} {old_time})",
+        before_value=f"{old_date} {old_time}",
+        after_value=f"{event.get('date')} {event.get('time')}"
+    )
+    return event
+
+@router.delete("/events/{event_id}")
+def delete_event(event_id: str):
+    event = next((e for e in db.events if e["id"] == event_id), None)
+    if event:
+        db.add_audit_log(
+            user_name="System",
+            user_role="SALES_EXECUTIVE",
+            action="Cancelled Event",
+            entity=event.get("title", event_id),
+            entity_id=event_id,
+            details=f"Cancelled meeting/demo with {event.get('customer_name')}"
+        )
+    db.events = [e for e in db.events if e["id"] != event_id]
+    return {"success": True}
+

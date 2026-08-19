@@ -13,7 +13,7 @@ export const ActivitiesPage: React.FC = () => {
     title: '',
     customer_name: '',
     time: '10:30 AM',
-    date: '17 Aug 2026',
+    date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' '),
     performed_by: 'Amit Sharma',
     notes: ''
   });
@@ -29,7 +29,7 @@ export const ActivitiesPage: React.FC = () => {
     e.preventDefault();
     await logActivity(formData);
     setModalOpen(false);
-    setFormData({ type: 'Call', title: '', customer_name: '', time: '10:30 AM', date: '17 Aug 2026', performed_by: 'Amit Sharma', notes: '' });
+    setFormData({ type: 'Call', title: '', customer_name: '', time: '10:30 AM', date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' '), performed_by: 'Amit Sharma', notes: '' });
   };
 
   const getIcon = (type: ActivityType) => {

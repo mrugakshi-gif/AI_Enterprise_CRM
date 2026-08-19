@@ -97,7 +97,7 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
         title: action.payload?.title || 'AI Recommended Task',
         customer_name: action.payload?.customer_name || 'Internal Operations',
         priority: action.payload?.priority || 'Normal',
-        due_date: action.payload?.due_date || '22 Aug 2026',
+        due_date: action.payload?.due_date || new Date(Date.now() + 3 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' '),
         assigned_to: action.payload?.assigned_to || user?.name || 'Amit Sharma',
         description: action.payload?.description || 'Task created via AI Assistant confirmation.',
         is_ai_generated: true
@@ -108,7 +108,7 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
         title: action.payload?.title || 'Meeting with Customer',
         customer_name: action.payload?.customer_name || 'Client',
         event_type: action.payload?.event_type || 'Meeting',
-        date: action.payload?.date || '2026-08-20',
+        date: action.payload?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0],
         time: action.payload?.time || '11:00 AM',
         duration: action.payload?.duration || '30 mins',
         location: action.payload?.location || 'Google Meet',

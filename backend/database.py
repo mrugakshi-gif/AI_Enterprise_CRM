@@ -1,7 +1,7 @@
 import json
 import os
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class CRMDatabase:
     def __init__(self):
@@ -319,7 +319,7 @@ class CRMDatabase:
                 "status": "Active",
                 "owner": "Amit Sharma",
                 "owner_id": "usr-3",
-                "last_contact": "17 Aug 2026",
+                "last_contact": (datetime.now() - timedelta(days=2)).strftime("%d %b %Y"),
                 "created_at": "15 Nov 2024",
                 "ai_summary": "Champion user actively providing feedback and evaluating custom dashboard modules.",
                 "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
@@ -797,7 +797,7 @@ class CRMDatabase:
                 "contact_id": "con-1",
                 "deal_id": "deal-1",
                 "time": "10:30 AM",
-                "date": "17 Aug 2026",
+                "date": datetime.now().strftime("%d %b %Y"),
                 "performed_by": "Amit Sharma",
                 "performed_by_id": "usr-3",
                 "notes": "Discussed 120-seat expansion across Bangalore and Mumbai development centers."
@@ -811,7 +811,7 @@ class CRMDatabase:
                 "contact_id": "con-3",
                 "deal_id": "deal-2",
                 "time": "11:45 AM",
-                "date": "17 Aug 2026",
+                "date": datetime.now().strftime("%d %b %Y"),
                 "performed_by": "Priya Patil",
                 "performed_by_id": "usr-2",
                 "notes": "Attached revised quotation with 3-year locking price protection."
@@ -825,7 +825,7 @@ class CRMDatabase:
                 "contact_id": "con-4",
                 "deal_id": "deal-3",
                 "time": "02:00 PM",
-                "date": "17 Aug 2026",
+                "date": datetime.now().strftime("%d %b %Y"),
                 "performed_by": "Amit Sharma",
                 "performed_by_id": "usr-3",
                 "notes": "Demonstrated natural language querying of company fleet policies."
@@ -839,7 +839,7 @@ class CRMDatabase:
                 "contact_id": "con-5",
                 "deal_id": "deal-4",
                 "time": "04:15 PM",
-                "date": "16 Aug 2026",
+                "date": (datetime.now() - timedelta(days=1)).strftime("%d %b %Y"),
                 "performed_by": "Sneha Kulkarni",
                 "performed_by_id": "usr-4",
                 "notes": "GST portal confirmed active status under Karnataka commercial tax zone."
@@ -853,7 +853,7 @@ class CRMDatabase:
                 "contact_id": None,
                 "deal_id": None,
                 "time": "09:00 AM",
-                "date": "16 Aug 2026",
+                "date": (datetime.now() - timedelta(days=1)).strftime("%d %b %Y"),
                 "performed_by": "Rohan Joshi",
                 "performed_by_id": "usr-5",
                 "notes": "Lead expressed interest in patient portal and doctor scheduling module."
@@ -866,7 +866,7 @@ class CRMDatabase:
                 "id": "evt-1",
                 "title": "TechNova Demo & Security Q&A",
                 "event_type": "Demo",
-                "date": "2026-08-18",
+                "date": (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
                 "time": "10:00 AM",
                 "duration": "45 mins",
                 "customer_name": "TechNova Solutions",
@@ -881,7 +881,7 @@ class CRMDatabase:
                 "id": "evt-2",
                 "title": "FinEdge Follow-up & Contract Review",
                 "event_type": "Meeting",
-                "date": "2026-08-19",
+                "date": datetime.now().strftime("%Y-%m-%d"),
                 "time": "02:30 PM",
                 "duration": "30 mins",
                 "customer_name": "FinEdge Systems",
@@ -896,7 +896,7 @@ class CRMDatabase:
                 "id": "evt-3",
                 "title": "Bharat Logistics Board Presentation",
                 "event_type": "Meeting",
-                "date": "2026-08-20",
+                "date": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
                 "time": "11:00 AM",
                 "duration": "60 mins",
                 "customer_name": "Bharat Logistics",
@@ -911,7 +911,7 @@ class CRMDatabase:
                 "id": "evt-4",
                 "title": "EduSphere LMS Webhook Testing",
                 "event_type": "Call",
-                "date": "2026-08-21",
+                "date": (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d"),
                 "time": "04:00 PM",
                 "duration": "30 mins",
                 "customer_name": "EduSphere Technologies",
@@ -1102,7 +1102,7 @@ class CRMDatabase:
         self.audit_logs = [
             {
                 "id": "log-1",
-                "timestamp": "17 Aug 2026 16:45 IST",
+                "timestamp": (datetime.now() - timedelta(hours=2)).strftime("%d %b %Y %H:%M IST"),
                 "user_name": "Amit Sharma",
                 "user_role": "SALES_EXECUTIVE",
                 "action": "Updated Deal Stage",
@@ -1114,7 +1114,7 @@ class CRMDatabase:
             },
             {
                 "id": "log-2",
-                "timestamp": "17 Aug 2026 15:30 IST",
+                "timestamp": (datetime.now() - timedelta(hours=4)).strftime("%d %b %Y %H:%M IST"),
                 "user_name": "Admin (Kabir Mehta)",
                 "user_role": "ADMIN",
                 "action": "Uploaded Document",
@@ -1126,7 +1126,7 @@ class CRMDatabase:
             },
             {
                 "id": "log-3",
-                "timestamp": "17 Aug 2026 14:15 IST",
+                "timestamp": (datetime.now() - timedelta(hours=5)).strftime("%d %b %Y %H:%M IST"),
                 "user_name": "Priya Patil",
                 "user_role": "SALES_MANAGER",
                 "action": "Created Task",
@@ -1138,7 +1138,7 @@ class CRMDatabase:
             },
             {
                 "id": "log-4",
-                "timestamp": "17 Aug 2026 12:42 IST",
+                "timestamp": (datetime.now() - timedelta(hours=7)).strftime("%d %b %Y %H:%M IST"),
                 "user_name": "Rohan Joshi",
                 "user_role": "SALES_EXECUTIVE",
                 "action": "Created Lead",
@@ -1150,7 +1150,7 @@ class CRMDatabase:
             },
             {
                 "id": "log-5",
-                "timestamp": "16 Aug 2026 17:10 IST",
+                "timestamp": (datetime.now() - timedelta(hours=14)).strftime("%d %b %Y %H:%M IST"),
                 "user_name": "Sneha Kulkarni",
                 "user_role": "SUPPORT_AGENT",
                 "action": "Logged Activity",

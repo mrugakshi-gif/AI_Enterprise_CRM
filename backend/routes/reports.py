@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from typing import Dict, Any, List
+from datetime import datetime, timedelta
 from backend.database import db
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
@@ -13,7 +14,7 @@ def get_reports():
             "category": "Sales",
             "description": "Comprehensive analysis of won deals, pipeline velocity, and conversion by stage in ₹ Lakhs.",
             "metrics": {"won_revenue": "₹18,50,000", "pipeline_total": "₹42,80,000", "win_rate": "68%"},
-            "generated_date": "17 Aug 2026",
+            "generated_date": datetime.now().strftime("%d %b %Y"),
             "export_format": "PDF / CSV"
         },
         {
@@ -40,7 +41,7 @@ def get_reports():
             "category": "Finance",
             "description": "Fiscal year-to-date collections, GST reconciliation status, and Q3 revenue runway.",
             "metrics": {"q2_achieved": "₹48.6 L", "q3_target": "₹65.0 L", "runway_confidence": "88%"},
-            "generated_date": "17 Aug 2026",
+            "generated_date": datetime.now().strftime("%d %b %Y"),
             "export_format": "PDF / CSV"
         },
         {
@@ -49,7 +50,7 @@ def get_reports():
             "category": "Sales Ops",
             "description": "Deal closing velocity, calls logged, demo conversions, and task completion metrics per rep.",
             "metrics": {"top_rep": "Amit Sharma", "deals_closed": "14", "revenue_generated": "₹12.8 L"},
-            "generated_date": "17 Aug 2026",
+            "generated_date": datetime.now().strftime("%d %b %Y"),
             "export_format": "PDF / CSV"
         }
     ]

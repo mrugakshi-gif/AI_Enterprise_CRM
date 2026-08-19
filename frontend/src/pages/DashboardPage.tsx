@@ -38,7 +38,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         title: `AI Action: ${ins.title}`,
         customer_name: ins.description.includes('TechNova') ? 'TechNova Solutions' : 'Enterprise Account',
         priority: 'Urgent',
-        due_date: '18 Aug 2026',
+        due_date: new Date(Date.now() + 2 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/-/g, ' '),
         assigned_to: user?.name || 'Amit Sharma'
       });
       onNavigate('tasks');
@@ -83,7 +83,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           color: 'var(--text-secondary)'
         }}>
           <Calendar size={14} color="var(--accent-blue)" />
-          <span>17 August 2026 • IST (Asia/Kolkata)</span>
+          <span>{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })} • IST (Asia/Kolkata)</span>
         </div>
       </div>
 

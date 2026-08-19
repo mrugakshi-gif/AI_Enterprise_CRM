@@ -1,5 +1,6 @@
 from typing import Dict, Any, List, Optional
 import re
+from datetime import datetime, timedelta
 from backend.database import db
 from backend.rag_engine import rag_engine
 
@@ -97,7 +98,7 @@ class AIAssistant:
                         "title": title,
                         "customer_name": customer,
                         "priority": "Urgent" if "urgent" in query_lower or "high" in query_lower else "Normal",
-                        "due_date": "22 Aug 2026",
+                        "due_date": (datetime.now() + timedelta(days=3)).strftime("%d %b %Y"),
                         "assigned_to": "Amit Sharma",
                         "description": f"AI Assistant generated task based on request: '{query}'",
                         "is_ai_generated": True
@@ -106,7 +107,8 @@ class AIAssistant:
             }
 
         # Intent: Schedule meeting
-        if "schedule meeting" in query_lower or "schedule a call" in query_lower or "schedule demo" in query_lower:
+        if "schedule meeting" in query_lower or "schedule a call" in query_lower or "schedule demo" in query_lower \
+                or "schedule a meeting" in query_lower or "book a meeting" in query_lower or "book meeting" in query_lower:
             customer = "TechNova Solutions"
             for c in db.companies:
                 if c["name"].lower() in query_lower:
@@ -125,7 +127,7 @@ class AIAssistant:
                     "payload": {
                         "customer_name": customer,
                         "title": f"Follow-up Discussion: {customer}",
-                        "date": "2026-08-20",
+                        "date": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
                         "time": "11:00 AM",
                         "duration": "30 mins",
                         "event_type": "Meeting",
@@ -177,7 +179,7 @@ class AIAssistant:
                         "customer_name": top_lead["company"],
                         "title": f"Follow-up with {top_lead['first_name']} {top_lead['last_name']}",
                         "priority": "Urgent" if top_lead["lead_score"] >= 85 else "Normal",
-                        "due_date": "20 Aug 2026",
+                        "due_date": (datetime.now() + timedelta(days=1)).strftime("%d %b %Y"),
                         "assigned_to": top_lead.get("assigned_to", "Amit Sharma"),
                         "description": f"AI Follow-up on lead value ₹{top_lead['lead_value']:,.0f}",
                         "is_ai_generated": True
@@ -219,7 +221,7 @@ class AIAssistant:
                         "title": f"Executive Sign-off Review for {top_deal['deal_name']}",
                         "customer_name": top_deal["company_name"],
                         "priority": "Urgent",
-                        "due_date": "21 Aug 2026",
+                        "due_date": (datetime.now() + timedelta(days=2)).strftime("%d %b %Y"),
                         "assigned_to": top_deal.get("owner", "Amit Sharma"),
                         "description": f"Prepare contract signing draft for ₹{top_deal['deal_value']:,.0f} deal.",
                         "is_ai_generated": True
@@ -260,7 +262,7 @@ class AIAssistant:
                         "title": f"Customer Retention Intervention - {top_risk['name']}",
                         "customer_name": top_risk["name"],
                         "priority": "Urgent",
-                        "due_date": "19 Aug 2026",
+                        "due_date": datetime.now().strftime("%d %b %Y"),
                         "assigned_to": "Sneha Kulkarni",
                         "description": f"Urgent CS review for account with health score {top_risk['customer_health']}/100.",
                         "is_ai_generated": True
@@ -299,7 +301,7 @@ class AIAssistant:
                             "title": f"Follow-up on {comp['name']} strategy",
                             "customer_name": comp["name"],
                             "priority": "High",
-                            "due_date": "22 Aug 2026",
+                            "due_date": (datetime.now() + timedelta(days=3)).strftime("%d %b %Y"),
                             "assigned_to": "Amit Sharma",
                             "description": comp.get("ai_recommendation", ""),
                             "is_ai_generated": True

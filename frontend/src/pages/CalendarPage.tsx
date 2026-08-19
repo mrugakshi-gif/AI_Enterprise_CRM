@@ -2,26 +2,38 @@ import React, { useState } from 'react';
 import { useCRM } from '../context/CRMContext';
 import { CalendarEvent } from '../types/crm';
 import { usePermissions } from '../hooks/usePermissions';
-import { 
-  Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, MapPin, Users,
-  X, Video, PhoneCall, Building2, CheckCircle2 
+import {
+  Plus, ChevronLeft, ChevronRight, X, Video, PhoneCall, Building2
 } from 'lucide-react';
+import {
+  getToday, formatDateISO, formatMonthYear, formatDateIST, formatTime12h,
+  addMonths, getMonthMatrix, DAYS_MON_FIRST, CalendarDayCell
+} from '../utils/dateUtils';
 
 export const CalendarPage: React.FC = () => {
-  const { events, createEvent, companies, contacts } = useCRM();
+  const { events, createEvent, companies } = useCRM();
   const { canManageDeals } = usePermissions();
+
+  const today = getToday();
+
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [formData, setFormData] = useState({
+
+  const todayISO = formatDateISO(today);
+
+  const getDefaultFormData = () => ({
     title: '',
     event_type: 'Demo',
-    date: '2026-08-20',
-    time: '11:00 AM',
+    date: todayISO,
+    time: formatTime12h(today),
     duration: '45 mins',
-    customer_name: 'TechNova Solutions',
+    customer_name: '',
     location: 'Google Meet: meet.google.com/nex-crm-call',
     description: ''
   });
+
+  const [formData, setFormData] = useState(getDefaultFormData());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,10 +43,19 @@ export const CalendarPage: React.FC = () => {
       attendees: ['Amit Sharma', formData.customer_name]
     });
     setModalOpen(false);
-    setFormData({ title: '', event_type: 'Demo', date: '2026-08-20', time: '11:00 AM', duration: '45 mins', customer_name: 'TechNova Solutions', location: 'Google Meet: meet.google.com/nex-crm-call', description: '' });
+    setFormData(getDefaultFormData());
   };
 
-  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const handlePrev = () => setCurrentMonth(prev => addMonths(prev, -1));
+  const handleNext = () => setCurrentMonth(prev => addMonths(prev, 1));
+  const handleToday = () => setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+
+  const openScheduleModal = () => {
+    setFormData(getDefaultFormData());
+    setModalOpen(true);
+  };
+
+  const cells: CalendarDayCell[] = getMonthMatrix(currentMonth);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -48,7 +69,7 @@ export const CalendarPage: React.FC = () => {
           </p>
         </div>
 
-        <button onClick={() => setModalOpen(true)} className="btn btn-primary">
+        <button onClick={openScheduleModal} className="btn btn-primary">
           <Plus size={16} />
           <span>Schedule Event</span>
         </button>
@@ -58,53 +79,66 @@ export const CalendarPage: React.FC = () => {
       <div className="card" style={{ padding: '24px' }}>
         {/* Calendar Nav */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 800 }}>August 2026 (IST Timezone)</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: 800 }}>{formatMonthYear(currentMonth)} (IST Timezone)</h2>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button className="btn btn-secondary btn-sm"><ChevronLeft size={14} /></button>
-            <button className="btn btn-secondary btn-sm">Today (17 Aug)</button>
-            <button className="btn btn-secondary btn-sm"><ChevronRight size={14} /></button>
+            <button className="btn btn-secondary btn-sm" onClick={handlePrev}><ChevronLeft size={14} /></button>
+            <button className="btn btn-secondary btn-sm" onClick={handleToday}>Today ({formatDateIST(today).slice(0, 6).trim()})</button>
+            <button className="btn btn-secondary btn-sm" onClick={handleNext}><ChevronRight size={14} /></button>
           </div>
         </div>
 
-        {/* Days Header */}
+        {/* Days Header — Monday first */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '8px', textAlign: 'center' }}>
-          {daysOfWeek.map(d => (
+          {DAYS_MON_FIRST.map(d => (
             <div key={d} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>{d}</div>
           ))}
         </div>
 
-        {/* Calendar Days Matrix (Aug 2026) */}
+        {/* Calendar Day Cells */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
-          {Array.from({ length: 31 }, (_, i) => {
-            const dayNum = i + 1;
-            const dateStr = `2026-08-${dayNum < 10 ? '0' + dayNum : dayNum}`;
-            const dayEvents = events.filter(e => e.date === dateStr);
-            const isToday = dayNum === 17;
-
+          {cells.map((cell, idx) => {
+            const dayEvents = events.filter(e => e.date === cell.dateStr);
             return (
               <div
-                key={dayNum}
+                key={idx}
+                onClick={() => {
+                  if (cell.isCurrentMonth) {
+                    setFormData(prev => ({ ...prev, date: cell.dateStr }));
+                    setModalOpen(true);
+                  }
+                }}
                 style={{
-                  minHeight: '110px',
+                  minHeight: '90px',
                   padding: '8px',
                   borderRadius: '8px',
-                  backgroundColor: isToday ? 'rgba(37, 99, 235, 0.05)' : 'var(--bg-muted)',
-                  border: isToday ? '1.5px solid var(--accent-blue)' : '1px solid var(--border-color)',
+                  backgroundColor: cell.isToday
+                    ? 'rgba(37, 99, 235, 0.07)'
+                    : cell.isCurrentMonth ? 'var(--bg-muted)' : 'transparent',
+                  border: cell.isToday
+                    ? '1.5px solid var(--accent-blue)'
+                    : cell.isCurrentMonth ? '1px solid var(--border-color)' : '1px solid transparent',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '4px'
+                  gap: '4px',
+                  cursor: cell.isCurrentMonth ? 'pointer' : 'default',
+                  opacity: cell.isCurrentMonth ? 1 : 0.35,
+                  transition: 'background 0.15s'
                 }}
               >
-                <div style={{ fontSize: '12px', fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--accent-blue)' : 'inherit' }}>
-                  {dayNum} {isToday && '• Today'}
+                <div style={{
+                  fontSize: '12px',
+                  fontWeight: cell.isToday ? 800 : 600,
+                  color: cell.isToday ? 'var(--accent-blue)' : 'inherit'
+                }}>
+                  {cell.dayNum} {cell.isToday && '• Today'}
                 </div>
 
                 {dayEvents.map(evt => (
                   <div
                     key={evt.id}
-                    onClick={() => setSelectedEvent(evt)}
+                    onClick={e => { e.stopPropagation(); setSelectedEvent(evt); }}
                     style={{
-                      padding: '4px 6px',
+                      padding: '3px 6px',
                       borderRadius: '4px',
                       backgroundColor: evt.event_type === 'Demo' ? 'rgba(124, 58, 237, 0.12)' :
                                       evt.event_type === 'Meeting' ? 'rgba(37, 99, 235, 0.12)' : 'rgba(5, 150, 105, 0.12)',
@@ -156,6 +190,7 @@ export const CalendarPage: React.FC = () => {
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Account / Client</label>
                   <select className="input-control" value={formData.customer_name} onChange={e => setFormData({ ...formData, customer_name: e.target.value })}>
+                    <option value="">Select company…</option>
                     {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
@@ -163,7 +198,7 @@ export const CalendarPage: React.FC = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Date (Aug 2026)</label>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Date</label>
                   <input type="date" className="input-control" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} />
                 </div>
                 <div>
@@ -186,7 +221,7 @@ export const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      {/* Event Details Inspection Modal */}
+      {/* Event Details Modal */}
       {selectedEvent && (
         <div className="modal-overlay" onClick={() => setSelectedEvent(null)}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
@@ -198,7 +233,7 @@ export const CalendarPage: React.FC = () => {
               <h3 style={{ fontSize: '16px', fontWeight: 700 }}>{selectedEvent.title}</h3>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div><strong>Account:</strong> {selectedEvent.customer_name}</div>
-                <div><strong>Date & Time:</strong> {selectedEvent.date} at {selectedEvent.time} ({selectedEvent.duration})</div>
+                <div><strong>Date & Time:</strong> {formatDateIST(selectedEvent.date)} at {selectedEvent.time} ({selectedEvent.duration})</div>
                 <div><strong>Location:</strong> {selectedEvent.location}</div>
                 {selectedEvent.description && <div><strong>Agenda:</strong> {selectedEvent.description}</div>}
               </div>
