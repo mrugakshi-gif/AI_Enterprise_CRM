@@ -5,4 +5,4 @@ Frontend UI (Vite + React):
 
 Backend API Docs (FastAPI):
 👉 http://localhost:8000/docs
-(Health Check: http://localhost:8000/api/health
+
