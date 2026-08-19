@@ -1,3 +1,3 @@
 Final Status
 
-Open → http://127.0.0.1:3000
+Open → http://localhost:5173
