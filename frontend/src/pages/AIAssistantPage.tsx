@@ -5,7 +5,8 @@ import { AIChatMessage } from '../types/crm';
 import { api } from '../services/api';
 import { 
   Bot, Send, Sparkles, FileText, CheckCircle2, AlertTriangle, 
-  ArrowRight, Plus, RefreshCw, CornerDownLeft, ShieldCheck, ExternalLink
+  ArrowRight, Plus, RefreshCw, CornerDownLeft, ShieldCheck, ExternalLink,
+  Check, User, Building2, TrendingUp, Calendar, Clock
 } from 'lucide-react';
 
 interface AIAssistantPageProps {
@@ -14,18 +15,19 @@ interface AIAssistantPageProps {
 
 export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) => {
   const { user, role } = useAuth();
-  const { createTask } = useCRM();
+  const { createTask, createEvent } = useCRM();
   const [messages, setMessages] = useState<AIChatMessage[]>([
     {
       id: 'msg-init',
       sender: 'ai',
-      text: `Hello ${user?.name.split(' ')[0] || 'Kabir'}! I am your **Nexora AI Knowledge Assistant**.\n\nI have access to your indexed internal company documents (policies, pricing, SLAs, KYC rules) and live CRM data records. Ask me anything or try one of the quick queries below!`,
+      text: `Hello **${user?.name?.split(' ')[0] || 'Kabir'}**! I am your **Nexora AI Knowledge Assistant**.\n\nI have real-time access to your indexed company documents (policies, SLAs, pricing, KYC) and live CRM database records. Ask any question or select a prompt below!`,
       timestamp: 'Just now',
       confidence: 1.0
     }
   ]);
   const [inputQuery, setInputQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [confirmedActionIds, setConfirmedActionIds] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const quickQuestions = [
@@ -79,9 +81,9 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
       const fallbackAiMsg: AIChatMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: 'ai',
-        text: "According to company records, please check the indexed policies or live CRM database.",
+        text: "I was unable to retrieve a verified answer from the knowledge base. Please ensure the relevant policies and records are indexed.",
         timestamp: 'Just now',
-        confidence: 0.85
+        confidence: 0.20
       };
       setMessages(prev => [...prev, fallbackAiMsg]);
     } finally {
@@ -89,18 +91,30 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
     }
   };
 
-  const handleExecuteAction = async (action: any) => {
+  const handleConfirmAction = async (msgId: string, action: any) => {
     if (action.type === 'create_task') {
       await createTask({
         title: action.payload?.title || 'AI Recommended Task',
-        customer_name: action.payload?.customer_name || 'Client',
+        customer_name: action.payload?.customer_name || 'Internal Operations',
         priority: action.payload?.priority || 'Normal',
-        due_date: '20 Aug 2026',
-        assigned_to: user?.name || 'Amit Sharma'
+        due_date: action.payload?.due_date || '22 Aug 2026',
+        assigned_to: action.payload?.assigned_to || user?.name || 'Amit Sharma',
+        description: action.payload?.description || 'Task created via AI Assistant confirmation.',
+        is_ai_generated: true
       });
-      alert(`Task "${action.payload?.title}" created successfully!`);
+      setConfirmedActionIds(prev => ({ ...prev, [msgId]: true }));
     } else if (action.type === 'schedule_meeting') {
-      onNavigate('calendar');
+      await createEvent({
+        title: action.payload?.title || 'Meeting with Customer',
+        customer_name: action.payload?.customer_name || 'Client',
+        event_type: action.payload?.event_type || 'Meeting',
+        date: action.payload?.date || '2026-08-20',
+        time: action.payload?.time || '11:00 AM',
+        duration: action.payload?.duration || '30 mins',
+        location: action.payload?.location || 'Google Meet',
+        description: 'Scheduled via AI Assistant confirmation.'
+      });
+      setConfirmedActionIds(prev => ({ ...prev, [msgId]: true }));
     }
   };
 
@@ -123,11 +137,11 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
               <Bot size={18} />
             </div>
             <h1 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              AI Knowledge Assistant
+              AI Knowledge & CRM Assistant
             </h1>
           </div>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            Ask questions about your company's products, policies, processes, and real-time CRM database records.
+            Multi-source grounding over internal company policy documents (RAG) and live CRM database records.
           </p>
         </div>
 
@@ -141,263 +155,243 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
         </button>
       </div>
 
-      {/* Quick Question Chips */}
-      <div style={{
+      {/* Chat Messages Container */}
+      <div className="card" style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '24px',
         display: 'flex',
-        gap: '8px',
-        overflowX: 'auto',
-        paddingBottom: '4px'
+        flexDirection: 'column',
+        gap: '20px',
+        backgroundColor: 'var(--bg-app)'
       }}>
-        {quickQuestions.map((q, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleSend(q)}
+        {messages.map(msg => (
+          <div
+            key={msg.id}
             style={{
-              padding: '6px 12px',
-              borderRadius: '20px',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-card)',
-              color: 'var(--text-primary)',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+              maxWidth: '85%',
+              alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start'
+            }}
+          >
+            {/* Sender tag */}
+            <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseOver={e => (e.currentTarget.style.borderColor = 'var(--accent-blue)')}
-            onMouseOut={e => (e.currentTarget.style.borderColor = 'var(--border-color)')}
+              marginBottom: '6px',
+              fontSize: '12px',
+              color: 'var(--text-muted)'
+            }}>
+              {msg.sender === 'ai' ? (
+                <>
+                  <Bot size={14} color="var(--accent-blue)" />
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Nexora AI Assistant</span>
+                  {msg.confidence !== undefined && (
+                    <span 
+                      style={{
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        backgroundColor: msg.confidence >= 0.8 ? 'rgba(5, 150, 105, 0.12)' : 'rgba(217, 119, 6, 0.12)',
+                        color: msg.confidence >= 0.8 ? 'var(--accent-emerald)' : 'var(--accent-amber)'
+                      }}
+                      title="Computed grounding match quality against knowledge base chunks or structured CRM tables"
+                    >
+                      Grounding Score: {Math.round(msg.confidence * 100)}%
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span style={{ fontWeight: 600 }}>You</span>
+              )}
+            </div>
+
+            {/* Message Bubble */}
+            <div style={{
+              padding: '14px 18px',
+              borderRadius: '14px',
+              backgroundColor: msg.sender === 'user' ? 'var(--primary)' : 'var(--bg-card)',
+              color: msg.sender === 'user' ? 'var(--text-inverse)' : 'var(--text-primary)',
+              border: msg.sender === 'user' ? 'none' : '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-xs)',
+              fontSize: '14px',
+              lineHeight: 1.6,
+              whiteSpace: 'pre-wrap'
+            }}>
+              {msg.text}
+            </div>
+
+            {/* CRM Record Cards Preview */}
+            {msg.crm_records && msg.crm_records.length > 0 && (
+              <div style={{
+                marginTop: '12px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '10px',
+                width: '100%'
+              }}>
+                {msg.crm_records.map((rec, i) => (
+                  <div
+                    key={i}
+                    className="card"
+                    style={{
+                      padding: '12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: 'var(--bg-card)'
+                    }}
+                  >
+                    <div>
+                      <span className="badge badge-accent" style={{ fontSize: '10px' }}>{rec.type}</span>
+                      <h5 style={{ fontSize: '13px', fontWeight: 700, marginTop: '4px' }}>{rec.title}</h5>
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>{rec.subtitle}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <strong style={{ fontSize: '12.5px' }}>{rec.value}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ACTION CONFIRMATION CARD */}
+            {msg.recommended_action && (
+              <div style={{
+                marginTop: '12px',
+                padding: '14px 16px',
+                borderRadius: '10px',
+                background: confirmedActionIds[msg.id] ? 'rgba(5, 150, 105, 0.08)' : 'linear-gradient(135deg, rgba(37, 99, 235, 0.06) 0%, rgba(124, 58, 237, 0.06) 100%)',
+                border: confirmedActionIds[msg.id] ? '1px solid rgba(5, 150, 105, 0.3)' : '1px solid rgba(37, 99, 235, 0.25)',
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={14} color={confirmedActionIds[msg.id] ? 'var(--accent-emerald)' : 'var(--accent-blue)'} />
+                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: confirmedActionIds[msg.id] ? 'var(--accent-emerald)' : 'var(--accent-blue)' }}>
+                      {confirmedActionIds[msg.id] ? 'Action Executed' : 'Suggested Action'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '13px', fontWeight: 600, marginTop: '2px', color: 'var(--text-primary)' }}>
+                    {msg.recommended_action.payload?.title || msg.recommended_action.label}
+                  </p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    Target: {msg.recommended_action.payload?.customer_name || 'CRM'} • Priority: {msg.recommended_action.payload?.priority || 'Normal'}
+                  </p>
+                </div>
+
+                <div>
+                  {confirmedActionIds[msg.id] ? (
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Check size={14} /> Added to Tasks
+                    </span>
+                  ) : (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleConfirmAction(msg.id, msg.recommended_action)}
+                    >
+                      <Plus size={13} /> {msg.recommended_action.label || 'Confirm & Create'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Grounding Source Citations */}
+            {msg.sources && msg.sources.length > 0 && (
+              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Grounding Sources & Citations
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {msg.sources.map((src, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-color)',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                      title={src.snippet}
+                    >
+                      <FileText size={12} color="var(--accent-blue)" />
+                      <strong>{src.title}</strong>
+                      {src.page && <span style={{ color: 'var(--text-muted)' }}>(Page {src.page})</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '13px' }}>
+            <Sparkles size={16} color="var(--accent-blue)" style={{ animation: 'spin 1.5s linear infinite' }} />
+            <span>Consulting internal knowledge base and active CRM data...</span>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Suggested Queries Chips */}
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+        {quickQuestions.map((qq, i) => (
+          <button
+            key={i}
+            onClick={() => handleSend(qq)}
+            className="btn btn-secondary btn-sm"
+            style={{ whiteSpace: 'nowrap', fontSize: '12px', padding: '4px 10px' }}
           >
-            <Sparkles size={12} color="var(--accent-blue)" />
-            <span>{q}</span>
+            {qq}
           </button>
         ))}
       </div>
 
-      {/* Chat Messages Container */}
-      <div className="card" style={{
-        flex: 1,
+      {/* Input Area */}
+      <div style={{
         display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        padding: '0'
+        gap: '10px',
+        alignItems: 'center'
       }}>
-        {/* Messages Stream */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px'
-        }}>
-          {messages.map(msg => (
-            <div
-              key={msg.id}
-              style={{
-                display: 'flex',
-                gap: '14px',
-                alignItems: 'flex-start',
-                flexDirection: msg.sender === 'user' ? 'row-reverse' : 'row'
-              }}
-            >
-              {/* Avatar */}
-              <div style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '50%',
-                backgroundColor: msg.sender === 'user' ? '#0F172A' : '#2563EB',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#FFFFFF',
-                fontSize: '13px',
-                fontWeight: 700,
-                flexShrink: 0
-              }}>
-                {msg.sender === 'user' ? user?.name[0] || 'K' : <Bot size={18} />}
-              </div>
-
-              {/* Message Bubble */}
-              <div style={{
-                maxWidth: '75%',
-                backgroundColor: msg.sender === 'user' ? 'var(--primary)' : 'var(--bg-muted)',
-                color: msg.sender === 'user' ? 'var(--text-inverse)' : 'var(--text-primary)',
-                padding: '14px 18px',
-                borderRadius: '14px',
-                borderTopRightRadius: msg.sender === 'user' ? '2px' : '14px',
-                borderTopLeftRadius: msg.sender === 'ai' ? '2px' : '14px',
-                fontSize: '13.5px',
-                lineHeight: 1.6,
-                boxShadow: 'var(--shadow-xs)'
-              }}>
-                {/* Text Body */}
-                <div style={{ whiteSpace: 'pre-wrap' }}>
-                  {msg.text.split('\n').map((line, lIdx) => {
-                    if (line.startsWith('• ') || line.startsWith('1. ') || line.startsWith('2. ') || line.startsWith('3. ')) {
-                      return <div key={lIdx} style={{ margin: '3px 0' }}>{line}</div>;
-                    }
-                    return <p key={lIdx} style={{ marginBottom: line ? '6px' : '0' }}>{line}</p>;
-                  })}
-                </div>
-
-                {/* CRM Records Attached */}
-                {msg.crm_records && msg.crm_records.length > 0 && (
-                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {msg.crm_records.map((rec, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          backgroundColor: 'var(--bg-card)',
-                          border: '1px solid var(--border-color)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between'
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '13px' }}>{rec.title}</div>
-                          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{rec.subtitle} • {rec.value}</div>
-                        </div>
-                        <span className="badge badge-low">{rec.badge}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Grounded Source Citations */}
-                {msg.sources && msg.sources.length > 0 && (
-                  <div style={{
-                    marginTop: '12px',
-                    paddingTop: '10px',
-                    borderTop: '1px solid var(--border-subtle)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px'
-                  }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      📚 Grounded Citations & Sources:
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {msg.sources.map((src, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            backgroundColor: 'var(--bg-card)',
-                            border: '1px solid var(--border-color)',
-                            fontSize: '11.5px',
-                            color: 'var(--accent-blue)',
-                            fontWeight: 600
-                          }}
-                        >
-                          <FileText size={12} />
-                          <span>{src.title} (Pg {src.page})</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Recommended Action Button */}
-                {msg.recommended_action && (
-                  <div style={{
-                    marginTop: '12px',
-                    paddingTop: '10px',
-                    borderTop: '1px solid var(--border-subtle)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <button
-                      onClick={() => handleExecuteAction(msg.recommended_action)}
-                      className="btn btn-primary btn-sm"
-                      style={{ fontSize: '12px', gap: '4px' }}
-                    >
-                      <Plus size={13} />
-                      <span>{msg.recommended_action.label}</span>
-                    </button>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Confidence: {Math.round((msg.confidence || 0.95) * 100)}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {loading && (
-            <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-              <div style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '50%',
-                backgroundColor: '#2563EB',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#FFFFFF'
-              }}>
-                <Bot size={18} />
-              </div>
-              <div style={{
-                padding: '12px 18px',
-                borderRadius: '14px',
-                backgroundColor: 'var(--bg-muted)',
-                fontSize: '13px',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <Sparkles size={14} className="animate-spin" />
-                <span>Synthesizing answer from company documents & CRM vector store...</span>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Bar */}
-        <div style={{
-          padding: '14px 20px',
-          borderTop: '1px solid var(--border-color)',
-          backgroundColor: 'var(--bg-card)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
+        <div style={{ position: 'relative', flex: 1 }}>
           <input
             type="text"
-            placeholder="Ask about company pricing, customer SLAs, high-value leads in Mumbai, or deal predictions..."
             className="input-control"
-            style={{ flex: 1, padding: '11px 14px' }}
+            placeholder="Ask anything about enterprise discounts, SLA terms, high-value leads, deals closing..."
             value={inputQuery}
             onChange={e => setInputQuery(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') handleSend();
             }}
+            disabled={loading}
+            style={{ paddingRight: '40px', fontSize: '13.5px' }}
           />
-
-          <button
-            onClick={() => handleSend()}
-            disabled={!inputQuery.trim() || loading}
-            className="btn btn-primary"
-            style={{ padding: '11px 18px' }}
-          >
-            <span>Ask</span>
-            <Send size={15} />
-          </button>
         </div>
+
+        <button
+          onClick={() => handleSend()}
+          className="btn btn-primary"
+          disabled={loading || !inputQuery.trim()}
+          style={{ height: '42px', padding: '0 18px' }}
+        >
+          <Send size={16} />
+          <span>Send</span>
+        </button>
       </div>
     </div>
   );

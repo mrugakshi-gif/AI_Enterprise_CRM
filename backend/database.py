@@ -84,8 +84,8 @@ class CRMDatabase:
                 "state": "Maharashtra",
                 "gstin": "27ABCDE1234F1Z5",
                 "pan": "ABCDE1234F",
-                "contacts_count": 12,
-                "active_deals_count": 4,
+                "contacts_count": 2,
+                "active_deals_count": 1,
                 "total_revenue": 1840000.0,
                 "customer_status": "Customer",
                 "customer_since": "14 Jan 2025",
@@ -94,7 +94,10 @@ class CRMDatabase:
                 "churn_probability": 14,
                 "ai_recommendation": "Renewal discussion should begin within the next 14 days.",
                 "website": "https://technovasolutions.in",
-                "employees": "150-300"
+                "employees": "150-300",
+                "contact_ids": ["con-1", "con-2"],
+                "deal_ids": ["deal-1"],
+                "lead_ids": ["lead-1"]
             },
             {
                 "id": "comp-2",
@@ -104,8 +107,8 @@ class CRMDatabase:
                 "state": "Maharashtra",
                 "gstin": "27AABCF5678G2Z1",
                 "pan": "AABCF5678G",
-                "contacts_count": 8,
-                "active_deals_count": 2,
+                "contacts_count": 1,
+                "active_deals_count": 1,
                 "total_revenue": 1250000.0,
                 "customer_status": "Customer",
                 "customer_since": "22 Feb 2025",
@@ -114,7 +117,10 @@ class CRMDatabase:
                 "churn_probability": 10,
                 "ai_recommendation": "Upsell opportunity for AI Analytics Module detected.",
                 "website": "https://finedgesystems.com",
-                "employees": "80-150"
+                "employees": "80-150",
+                "contact_ids": ["con-3"],
+                "deal_ids": ["deal-2"],
+                "lead_ids": ["lead-2"]
             },
             {
                 "id": "comp-3",
@@ -124,8 +130,8 @@ class CRMDatabase:
                 "state": "Delhi",
                 "gstin": "07AAACB9876D1Z9",
                 "pan": "AAACB9876D",
-                "contacts_count": 6,
-                "active_deals_count": 2,
+                "contacts_count": 1,
+                "active_deals_count": 1,
                 "total_revenue": 920000.0,
                 "customer_status": "Prospect",
                 "customer_since": "05 Mar 2026",
@@ -134,7 +140,10 @@ class CRMDatabase:
                 "churn_probability": 35,
                 "ai_recommendation": "Executive sponsor meeting required to finalize contract terms.",
                 "website": "https://bharatlogistics.in",
-                "employees": "250-500"
+                "employees": "250-500",
+                "contact_ids": ["con-4"],
+                "deal_ids": ["deal-3"],
+                "lead_ids": ["lead-3"]
             },
             {
                 "id": "comp-4",
@@ -144,8 +153,8 @@ class CRMDatabase:
                 "state": "Karnataka",
                 "gstin": "29AABCG4432K1Z4",
                 "pan": "AABCG4432K",
-                "contacts_count": 5,
-                "active_deals_count": 3,
+                "contacts_count": 1,
+                "active_deals_count": 1,
                 "total_revenue": 2100000.0,
                 "customer_status": "Customer",
                 "customer_since": "10 Nov 2024",
@@ -154,7 +163,10 @@ class CRMDatabase:
                 "churn_probability": 6,
                 "ai_recommendation": "High NPS score — request testimonial or case study.",
                 "website": "https://greengridenergy.in",
-                "employees": "100-250"
+                "employees": "100-250",
+                "contact_ids": ["con-5"],
+                "deal_ids": ["deal-4"],
+                "lead_ids": []
             },
             {
                 "id": "comp-5",
@@ -164,7 +176,7 @@ class CRMDatabase:
                 "state": "Telangana",
                 "gstin": "36AACCE9911P1Z8",
                 "pan": "AACCE9911P",
-                "contacts_count": 4,
+                "contacts_count": 0,
                 "active_deals_count": 1,
                 "total_revenue": 650000.0,
                 "customer_status": "Prospect",
@@ -174,7 +186,10 @@ class CRMDatabase:
                 "churn_probability": 42,
                 "ai_recommendation": "Follow-up on pending institutional LMS RFP proposal.",
                 "website": "https://edusphere.co.in",
-                "employees": "50-100"
+                "employees": "50-100",
+                "contact_ids": [],
+                "deal_ids": ["deal-5"],
+                "lead_ids": ["lead-5"]
             },
             {
                 "id": "comp-6",
@@ -184,7 +199,7 @@ class CRMDatabase:
                 "state": "Maharashtra",
                 "gstin": "27AAACG1122L1Z3",
                 "pan": "AAACG1122L",
-                "contacts_count": 3,
+                "contacts_count": 0,
                 "active_deals_count": 0,
                 "total_revenue": 450000.0,
                 "customer_status": "Customer",
@@ -194,16 +209,20 @@ class CRMDatabase:
                 "churn_probability": 81,
                 "ai_recommendation": "Customer churn alert: No activity for 28 days and recent support ticket raised.",
                 "website": "https://globalsolutionsindia.com",
-                "employees": "40-90"
+                "employees": "40-90",
+                "contact_ids": [],
+                "deal_ids": [],
+                "lead_ids": []
             }
         ]
 
-        # 3. Contacts
+        # 3. Contacts — with company_id foreign key
         self.contacts = [
             {
                 "id": "con-1",
                 "name": "Rahul Sharma",
                 "company": "TechNova Solutions",
+                "company_id": "comp-1",
                 "designation": "Sales Director",
                 "email": "rahul.sharma@technovasolutions.in",
                 "phone": "+91 98201 44521",
@@ -211,15 +230,21 @@ class CRMDatabase:
                 "state": "Maharashtra",
                 "status": "Active",
                 "owner": "Amit Sharma",
+                "owner_id": "usr-3",
                 "last_contact": "16 Aug 2026",
                 "created_at": "12 Jan 2026",
                 "ai_summary": "Rahul is a key decision maker involved in two active enterprise rollout opportunities.",
-                "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+                "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+                "deal_ids": ["deal-1"],
+                "lead_ids": ["lead-1"],
+                "engagement_score": 85,
+                "lead_score": 87
             },
             {
                 "id": "con-2",
                 "name": "Vikram Deshmukh",
                 "company": "TechNova Solutions",
+                "company_id": "comp-1",
                 "designation": "Chief Technology Officer",
                 "email": "vikram.d@technovasolutions.in",
                 "phone": "+91 98220 88991",
@@ -227,15 +252,21 @@ class CRMDatabase:
                 "state": "Maharashtra",
                 "status": "Active",
                 "owner": "Priya Patil",
+                "owner_id": "usr-2",
                 "last_contact": "14 Aug 2026",
                 "created_at": "18 Jan 2026",
                 "ai_summary": "Technical lead evaluating API & single sign-on integration architecture.",
-                "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+                "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+                "deal_ids": ["deal-1"],
+                "lead_ids": [],
+                "engagement_score": 72,
+                "lead_score": 76
             },
             {
                 "id": "con-3",
                 "name": "Ananya Kulkarni",
                 "company": "FinEdge Systems",
+                "company_id": "comp-2",
                 "designation": "VP of Operations",
                 "email": "ananya.k@finedgesystems.com",
                 "phone": "+91 97654 32109",
@@ -243,15 +274,21 @@ class CRMDatabase:
                 "state": "Maharashtra",
                 "status": "Active",
                 "owner": "Sneha Kulkarni",
+                "owner_id": "usr-4",
                 "last_contact": "15 Aug 2026",
                 "created_at": "24 Feb 2026",
                 "ai_summary": "High engagement sponsor keen on automated compliance and GST reporting.",
-                "avatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80"
+                "avatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
+                "deal_ids": ["deal-2"],
+                "lead_ids": ["lead-2"],
+                "engagement_score": 78,
+                "lead_score": 76
             },
             {
                 "id": "con-4",
                 "name": "Harish Verma",
                 "company": "Bharat Logistics",
+                "company_id": "comp-3",
                 "designation": "Managing Director",
                 "email": "harish.verma@bharatlogistics.in",
                 "phone": "+91 98110 55432",
@@ -259,15 +296,21 @@ class CRMDatabase:
                 "state": "Delhi",
                 "status": "Active",
                 "owner": "Rohan Joshi",
+                "owner_id": "usr-5",
                 "last_contact": "11 Aug 2026",
                 "created_at": "08 Mar 2026",
                 "ai_summary": "Final budget authority for 14-branch CRM software procurement.",
-                "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80"
+                "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+                "deal_ids": ["deal-3"],
+                "lead_ids": ["lead-3"],
+                "engagement_score": 91,
+                "lead_score": 91
             },
             {
                 "id": "con-5",
                 "name": "Divya Reddy",
                 "company": "GreenGrid Energy",
+                "company_id": "comp-4",
                 "designation": "Head of Enterprise Systems",
                 "email": "divya.reddy@greengridenergy.in",
                 "phone": "+91 99887 76655",
@@ -275,14 +318,19 @@ class CRMDatabase:
                 "state": "Karnataka",
                 "status": "Active",
                 "owner": "Amit Sharma",
+                "owner_id": "usr-3",
                 "last_contact": "17 Aug 2026",
                 "created_at": "15 Nov 2024",
                 "ai_summary": "Champion user actively providing feedback and evaluating custom dashboard modules.",
-                "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80"
+                "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
+                "deal_ids": ["deal-4"],
+                "lead_ids": [],
+                "engagement_score": 94,
+                "lead_score": 80
             }
         ]
 
-        # 4. Leads
+        # 4. Leads — with company_id, contact_id, ai_score_factors
         self.leads = [
             {
                 "id": "lead-1",
@@ -291,6 +339,8 @@ class CRMDatabase:
                 "email": "rahul.sharma@technovasolutions.in",
                 "phone": "+91 98201 44521",
                 "company": "TechNova Solutions",
+                "company_id": "comp-1",
+                "contact_id": "con-1",
                 "job_title": "Sales Director",
                 "industry": "IT Services",
                 "city": "Mumbai",
@@ -300,13 +350,23 @@ class CRMDatabase:
                 "lead_score": 87,
                 "lead_value": 450000.0,
                 "assigned_to": "Amit Sharma",
+                "assigned_to_id": "usr-3",
                 "expected_closing": "24 Aug 2026",
                 "notes": "Requested custom enterprise multi-tenant configuration.",
                 "created_at": "10 Aug 2026",
                 "last_contact": "16 Aug 2026",
                 "ai_summary": "High engagement score based on website product demo visit & pricing download.",
                 "ai_reasons": ["High engagement", "Multiple interactions", "Requested pricing", "Visited product page", "Opened recent email"],
-                "ai_recommended_action": "Schedule a product demonstration within 24 hours."
+                "ai_recommended_action": "Schedule a product demonstration within 24 hours.",
+                "ai_score_factors": [
+                    {"factor": "Recent Engagement", "score": 22, "max": 25, "detail": "Opened 3 emails, visited pricing page twice in last 7 days"},
+                    {"factor": "Company Size", "score": 18, "max": 20, "detail": "150-300 employees qualifies for Enterprise tier"},
+                    {"factor": "Lead Value", "score": 17, "max": 20, "detail": "₹4.5L opportunity above ₹3L high-value threshold"},
+                    {"factor": "Lead Source", "score": 14, "max": 15, "detail": "Website leads have 80.9% historical qualification rate"},
+                    {"factor": "Interactions", "score": 10, "max": 12, "detail": "7 recorded CRM interactions in 6 days"},
+                    {"factor": "Recency", "score": 6, "max": 8, "detail": "Last contacted 3 days ago — moderate recency"}
+                ],
+                "deal_ids": ["deal-1"]
             },
             {
                 "id": "lead-2",
@@ -315,6 +375,8 @@ class CRMDatabase:
                 "email": "priya.p@finedgesystems.com",
                 "phone": "+91 98902 33412",
                 "company": "FinEdge Systems",
+                "company_id": "comp-2",
+                "contact_id": "con-3",
                 "job_title": "VP Strategy",
                 "industry": "Financial Services",
                 "city": "Pune",
@@ -324,13 +386,23 @@ class CRMDatabase:
                 "lead_score": 76,
                 "lead_value": 380000.0,
                 "assigned_to": "Sneha Kulkarni",
+                "assigned_to_id": "usr-4",
                 "expected_closing": "30 Aug 2026",
                 "notes": "Discussed SOC2 and data localization compliance requirements.",
                 "created_at": "12 Aug 2026",
                 "last_contact": "15 Aug 2026",
                 "ai_summary": "Interested in Indian banking integration & GST automated invoice creation.",
                 "ai_reasons": ["Inbound LinkedIn message", "Visited security whitepaper", "Decision maker authority"],
-                "ai_recommended_action": "Send SOC2 compliance report and schedule deep-dive."
+                "ai_recommended_action": "Send SOC2 compliance report and schedule deep-dive.",
+                "ai_score_factors": [
+                    {"factor": "Recent Engagement", "score": 18, "max": 25, "detail": "LinkedIn inbound + security whitepaper visit"},
+                    {"factor": "Company Size", "score": 14, "max": 20, "detail": "80-150 employees in Financial Services vertical"},
+                    {"factor": "Lead Value", "score": 16, "max": 20, "detail": "₹3.8L is above median deal value"},
+                    {"factor": "Lead Source", "score": 11, "max": 15, "detail": "LinkedIn leads convert at 73.6% historically"},
+                    {"factor": "Interactions", "score": 10, "max": 12, "detail": "5 recorded interactions, 1 call completed"},
+                    {"factor": "Recency", "score": 7, "max": 8, "detail": "Last contacted 4 days ago — good recency"}
+                ],
+                "deal_ids": ["deal-2"]
             },
             {
                 "id": "lead-3",
@@ -339,6 +411,8 @@ class CRMDatabase:
                 "email": "harish.v@bharatlogistics.in",
                 "phone": "+91 98110 55432",
                 "company": "Bharat Logistics",
+                "company_id": "comp-3",
+                "contact_id": "con-4",
                 "job_title": "Managing Director",
                 "industry": "Logistics",
                 "city": "Delhi",
@@ -348,13 +422,23 @@ class CRMDatabase:
                 "lead_score": 91,
                 "lead_value": 620000.0,
                 "assigned_to": "Amit Sharma",
+                "assigned_to_id": "usr-3",
                 "expected_closing": "18 Aug 2026",
                 "notes": "Proposal for 150 fleet tracking & customer portal seats delivered.",
                 "created_at": "05 Aug 2026",
                 "last_contact": "16 Aug 2026",
                 "ai_summary": "Proposal actively reviewed by board; pricing negotiation underway.",
                 "ai_reasons": ["Proposal document opened 7 times", "Budget confirmed", "Referral from existing client"],
-                "ai_recommended_action": "Offer annual payment discount of 8% to close by Friday."
+                "ai_recommended_action": "Offer annual payment discount of 8% to close by Friday.",
+                "ai_score_factors": [
+                    {"factor": "Recent Engagement", "score": 24, "max": 25, "detail": "Proposal opened 7 times; board actively reviewing"},
+                    {"factor": "Company Size", "score": 19, "max": 20, "detail": "250-500 employee logistics firm, high seat count"},
+                    {"factor": "Lead Value", "score": 19, "max": 20, "detail": "₹6.2L is top-tier deal — highest in current pipeline"},
+                    {"factor": "Lead Source", "score": 14, "max": 15, "detail": "Referral leads have 89.6% qualification rate"},
+                    {"factor": "Interactions", "score": 10, "max": 12, "detail": "8 interactions including board presentation"},
+                    {"factor": "Recency", "score": 5, "max": 8, "detail": "Last contacted 3 days ago — closing window approaching"}
+                ],
+                "deal_ids": ["deal-3"]
             },
             {
                 "id": "lead-4",
@@ -363,6 +447,8 @@ class CRMDatabase:
                 "email": "suresh.iyer@apexmedicare.in",
                 "phone": "+91 94440 12890",
                 "company": "Apex Medicare Solutions",
+                "company_id": None,
+                "contact_id": None,
                 "job_title": "Chief Administrative Officer",
                 "industry": "Healthcare Admin",
                 "city": "Chennai",
@@ -372,13 +458,23 @@ class CRMDatabase:
                 "lead_score": 64,
                 "lead_value": 290000.0,
                 "assigned_to": "Rohan Joshi",
+                "assigned_to_id": "usr-5",
                 "expected_closing": "10 Sep 2026",
                 "notes": "Looking for patient relationship management and doctor schedule calendar.",
                 "created_at": "16 Aug 2026",
                 "last_contact": "16 Aug 2026",
                 "ai_summary": "Initial form submission, needs discovery call.",
                 "ai_reasons": ["High search intent", "Enterprise healthcare vertical"],
-                "ai_recommended_action": "Assign discovery call and send Healthcare CRM brochure."
+                "ai_recommended_action": "Assign discovery call and send Healthcare CRM brochure.",
+                "ai_score_factors": [
+                    {"factor": "Recent Engagement", "score": 14, "max": 25, "detail": "Single form submission today — no further engagement yet"},
+                    {"factor": "Company Size", "score": 12, "max": 20, "detail": "Healthcare admin — vertical has good LTV potential"},
+                    {"factor": "Lead Value", "score": 12, "max": 20, "detail": "₹2.9L is below median; exploratory stage"},
+                    {"factor": "Lead Source", "score": 9, "max": 15, "detail": "Google Ads converts at 60% — lower than organic"},
+                    {"factor": "Interactions", "score": 10, "max": 12, "detail": "1 interaction (form fill) — needs first discovery call"},
+                    {"factor": "Recency", "score": 7, "max": 8, "detail": "Created today — most recent lead"}
+                ],
+                "deal_ids": []
             },
             {
                 "id": "lead-5",
@@ -387,6 +483,8 @@ class CRMDatabase:
                 "email": "deepak.rao@cloudmatrix.in",
                 "phone": "+91 97230 45678",
                 "company": "CloudMatrix India",
+                "company_id": "comp-5",
+                "contact_id": None,
                 "job_title": "Head of Sales",
                 "industry": "IT Services",
                 "city": "Ahmedabad",
@@ -396,129 +494,175 @@ class CRMDatabase:
                 "lead_score": 58,
                 "lead_value": 310000.0,
                 "assigned_to": "Priya Patil",
+                "assigned_to_id": "usr-2",
                 "expected_closing": "05 Sep 2026",
                 "notes": "Partner referral through AWS India network.",
                 "created_at": "14 Aug 2026",
                 "last_contact": "15 Aug 2026",
                 "ai_summary": "Exploring CRM migration from legacy spreadsheets.",
                 "ai_reasons": ["Partner validation", "Mid-size team"],
-                "ai_recommended_action": "Send data migration guide and schedule 20-min demo."
+                "ai_recommended_action": "Send data migration guide and schedule 20-min demo.",
+                "ai_score_factors": [
+                    {"factor": "Recent Engagement", "score": 12, "max": 25, "detail": "One call completed; low email response rate"},
+                    {"factor": "Company Size", "score": 10, "max": 20, "detail": "50-100 employee firm, SMB tier"},
+                    {"factor": "Lead Value", "score": 13, "max": 20, "detail": "₹3.1L — modest but achievable deal"},
+                    {"factor": "Lead Source", "score": 12, "max": 15, "detail": "Partner referrals convert at 83.3% historically"},
+                    {"factor": "Interactions", "score": 6, "max": 12, "detail": "3 interactions — needs more nurturing"},
+                    {"factor": "Recency", "score": 5, "max": 8, "detail": "Last contact 4 days ago — moderate recency"}
+                ],
+                "deal_ids": ["deal-5"]
             }
         ]
 
-        # 5. Deals
+        # 5. Deals — with company_id, contact_id
         self.deals = [
             {
                 "id": "deal-1",
                 "company_name": "TechNova Solutions",
+                "company_id": "comp-1",
+                "contact_name": "Rahul Sharma",
+                "contact_id": "con-1",
                 "deal_name": "Enterprise CRM Implementation",
                 "description": "Full-stack enterprise CRM deployment with WhatsApp API & RAG Assistant for 120 users.",
                 "deal_value": 450000.0,
                 "stage": "Negotiation",
                 "expected_close_date": "24 Aug 2026",
                 "owner": "Amit Sharma",
+                "owner_id": "usr-3",
                 "priority": "High",
                 "probability": 78,
                 "win_factors": ["High executive engagement", "Decision maker involved", "Proposal opened 12 times", "Recent technical demo cleared"],
                 "risk_factor": "Pricing objection detected on implementation SLA.",
+                "risk_factors": ["Pricing objection on implementation SLA", "No decision from legal team yet", "Competitor Salesforce in shortlist"],
                 "ai_recommendation": "Offer annual-plan pricing with free onboarding training rather than reducing the base package price.",
                 "created_at": "01 Aug 2026",
                 "last_updated": "16 Aug 2026",
-                "contact_name": "Rahul Sharma"
+                "days_in_stage": 5,
+                "lead_id": "lead-1"
             },
             {
                 "id": "deal-2",
                 "company_name": "FinEdge Systems",
+                "company_id": "comp-2",
+                "contact_name": "Ananya Kulkarni",
+                "contact_id": "con-3",
                 "deal_name": "FinTech Compliance & CRM Suite",
                 "description": "Automated KYC workflow, GST invoice generator, and RBI audit log trail integration.",
                 "deal_value": 380000.0,
                 "stage": "Proposal Sent",
                 "expected_close_date": "30 Aug 2026",
                 "owner": "Priya Patil",
+                "owner_id": "usr-2",
                 "priority": "High",
                 "probability": 65,
                 "win_factors": ["Custom GST requirement fulfilled", "Direct VP sponsorship"],
                 "risk_factor": "Budget sign-off pending Q3 financial committee review.",
+                "risk_factors": ["Budget sign-off pending Q3 committee", "No contact in 5 days", "Procurement process unclear"],
                 "ai_recommendation": "Share ROI calculator showing 34% reduction in lead follow-up latency.",
                 "created_at": "04 Aug 2026",
                 "last_updated": "15 Aug 2026",
-                "contact_name": "Ananya Kulkarni"
+                "days_in_stage": 8,
+                "lead_id": "lead-2"
             },
             {
                 "id": "deal-3",
                 "company_name": "Bharat Logistics",
+                "company_id": "comp-3",
+                "contact_name": "Harish Verma",
+                "contact_id": "con-4",
                 "deal_name": "Nationwide Fleet CRM & Dispatch Portal",
                 "description": "Multi-city logistics pipeline connecting 14 transit hubs across North India.",
                 "deal_value": 620000.0,
                 "stage": "Contacted",
                 "expected_close_date": "15 Sep 2026",
                 "owner": "Amit Sharma",
+                "owner_id": "usr-3",
                 "priority": "Urgent",
                 "probability": 45,
                 "win_factors": ["High volume requirement", "Competitor contract expiring"],
                 "risk_factor": "Competitor Zoho CRM in active shortlist.",
+                "risk_factors": ["Competitor Zoho CRM in active shortlist", "Board decision pending", "No response to last two emails"],
                 "ai_recommendation": "Highlight Nexora's AI Knowledge Assistant & native Indian GST compliance advantage.",
                 "created_at": "10 Aug 2026",
                 "last_updated": "14 Aug 2026",
-                "contact_name": "Harish Verma"
+                "days_in_stage": 9,
+                "lead_id": "lead-3"
             },
             {
                 "id": "deal-4",
                 "company_name": "GreenGrid Energy",
+                "company_id": "comp-4",
+                "contact_name": "Divya Reddy",
+                "contact_id": "con-5",
                 "deal_name": "Solar Project Pipeline & Service CRM",
                 "description": "EPC installation tracking, field technician mobile updates, and government subsidy logging.",
                 "deal_value": 540000.0,
                 "stage": "Deal Closed",
                 "expected_close_date": "12 Aug 2026",
                 "owner": "Amit Sharma",
+                "owner_id": "usr-3",
                 "priority": "Normal",
                 "probability": 100,
                 "win_factors": ["Signed 2-year contract", "Advance payment received via RTGS"],
                 "risk_factor": None,
+                "risk_factors": [],
                 "ai_recommendation": "Kickoff onboarding task list and schedule CS introduction.",
                 "created_at": "15 Jul 2026",
                 "last_updated": "12 Aug 2026",
-                "contact_name": "Divya Reddy"
+                "days_in_stage": 7,
+                "lead_id": None
             },
             {
                 "id": "deal-5",
                 "company_name": "EduSphere Technologies",
+                "company_id": "comp-5",
+                "contact_name": "Deepak Rao",
+                "contact_id": None,
                 "deal_name": "EdTech Admissions & Counselor CRM",
                 "description": "Student lead nurturing, Telephony dialer integration, and payment gateway webhooks.",
                 "deal_value": 310000.0,
                 "stage": "Qualified",
                 "expected_close_date": "08 Sep 2026",
                 "owner": "Rohan Joshi",
+                "owner_id": "usr-5",
                 "priority": "Medium",
                 "probability": 55,
                 "win_factors": ["Strong product demo feedback", "Ready for student intake season"],
                 "risk_factor": "Requires custom payment gateway connector.",
+                "risk_factors": ["Custom payment gateway connector required", "Budget decision with academic committee", "Integration timeline unclear"],
                 "ai_recommendation": "Confirm Razorpay & Cashfree API readiness to remove technical objection.",
                 "created_at": "08 Aug 2026",
                 "last_updated": "16 Aug 2026",
-                "contact_name": "Deepak Rao"
+                "days_in_stage": 8,
+                "lead_id": "lead-5"
             },
             {
                 "id": "deal-6",
                 "company_name": "Maharashtra Digital Works",
+                "company_id": None,
+                "contact_name": "Nitin Gadve",
+                "contact_id": None,
                 "deal_name": "Agency Client Hub & Retainer Tracking",
                 "description": "White-label client reporting and task collaboration workspace.",
                 "deal_value": 240000.0,
                 "stage": "Deal Closed",
                 "expected_close_date": "02 Aug 2026",
                 "owner": "Priya Patil",
+                "owner_id": "usr-2",
                 "priority": "Normal",
                 "probability": 100,
                 "win_factors": ["Fast decision cycle", "Quarterly upfront payment"],
                 "risk_factor": None,
+                "risk_factors": [],
                 "ai_recommendation": "Upsell additional team seat pack during month 3.",
                 "created_at": "20 Jul 2026",
                 "last_updated": "02 Aug 2026",
-                "contact_name": "Nitin Gadve"
+                "days_in_stage": 0,
+                "lead_id": None
             }
         ]
 
-        # 6. Tasks (inspired directly by Screenshot 1 & 2)
+        # 6. Tasks — with related entity links and is_ai_generated flag
         self.tasks = [
             {
                 "id": "MDS-39",
@@ -529,10 +673,16 @@ class CRMDatabase:
                 "priority": "Urgent",
                 "due_date": "18 Aug 2026",
                 "assigned_to": "Amit Sharma",
+                "assigned_to_id": "usr-3",
                 "assigned_avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
                 "comments_count": 13,
                 "created_date": "14 Aug 2026",
-                "description": "Send updated annual contract proposal with complimentary dedicated account manager."
+                "description": "Send updated annual contract proposal with complimentary dedicated account manager.",
+                "related_entity_type": "deal",
+                "related_entity_id": "deal-1",
+                "related_company_id": "comp-1",
+                "related_contact_id": "con-1",
+                "is_ai_generated": False
             },
             {
                 "id": "MDS-2",
@@ -543,10 +693,16 @@ class CRMDatabase:
                 "priority": "Low",
                 "due_date": "19 Aug 2026",
                 "assigned_to": "Priya Patil",
+                "assigned_to_id": "usr-2",
                 "assigned_avatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
                 "comments_count": 7,
                 "created_date": "12 Aug 2026",
-                "description": "Incorporate GST invoice automation figures into the ROI deck."
+                "description": "Incorporate GST invoice automation figures into the ROI deck.",
+                "related_entity_type": "deal",
+                "related_entity_id": "deal-2",
+                "related_company_id": "comp-2",
+                "related_contact_id": "con-3",
+                "is_ai_generated": False
             },
             {
                 "id": "MDS-1",
@@ -557,10 +713,16 @@ class CRMDatabase:
                 "priority": "Urgent",
                 "due_date": "21 Aug 2026",
                 "assigned_to": "Amit Sharma",
+                "assigned_to_id": "usr-3",
                 "assigned_avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
                 "comments_count": 4,
                 "created_date": "10 Aug 2026",
-                "description": "Highlight latency improvements and 99.9% uptime SLA guarantee."
+                "description": "Highlight latency improvements and 99.9% uptime SLA guarantee.",
+                "related_entity_type": "deal",
+                "related_entity_id": "deal-3",
+                "related_company_id": "comp-3",
+                "related_contact_id": "con-4",
+                "is_ai_generated": False
             },
             {
                 "id": "MDS-12",
@@ -571,10 +733,16 @@ class CRMDatabase:
                 "priority": "Normal",
                 "due_date": "22 Aug 2026",
                 "assigned_to": "Sneha Kulkarni",
+                "assigned_to_id": "usr-4",
                 "assigned_avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
                 "comments_count": 2,
                 "created_date": "15 Aug 2026",
-                "description": "Walk field leads through mobile offline sync and ticket dispatch."
+                "description": "Walk field leads through mobile offline sync and ticket dispatch.",
+                "related_entity_type": "company",
+                "related_entity_id": "comp-4",
+                "related_company_id": "comp-4",
+                "related_contact_id": "con-5",
+                "is_ai_generated": False
             },
             {
                 "id": "MDS-56",
@@ -585,10 +753,16 @@ class CRMDatabase:
                 "priority": "Normal",
                 "due_date": "25 Aug 2026",
                 "assigned_to": "Rohan Joshi",
+                "assigned_to_id": "usr-5",
                 "assigned_avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
                 "comments_count": 1,
                 "created_date": "16 Aug 2026",
-                "description": "Verify HSN/SAC code mapping for educational course fees."
+                "description": "Verify HSN/SAC code mapping for educational course fees.",
+                "related_entity_type": "deal",
+                "related_entity_id": "deal-5",
+                "related_company_id": "comp-5",
+                "related_contact_id": None,
+                "is_ai_generated": False
             },
             {
                 "id": "MDS-43",
@@ -599,23 +773,33 @@ class CRMDatabase:
                 "priority": "Low",
                 "due_date": "13 Aug 2026",
                 "assigned_to": "Kabir Mehta",
+                "assigned_to_id": "usr-1",
                 "assigned_avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
                 "comments_count": 13,
                 "created_date": "08 Aug 2026",
-                "description": "Webhook endpoint verified with real UPI and Net Banking sandbox transactions."
+                "description": "Webhook endpoint verified with real UPI and Net Banking sandbox transactions.",
+                "related_entity_type": "deal",
+                "related_entity_id": "deal-6",
+                "related_company_id": None,
+                "related_contact_id": None,
+                "is_ai_generated": False
             }
         ]
 
-        # 7. Activities
+        # 7. Activities — with entity links
         self.activities = [
             {
                 "id": "act-1",
                 "type": "Call",
                 "title": "Discovery call with Rahul Sharma",
                 "customer_name": "TechNova Solutions",
+                "company_id": "comp-1",
+                "contact_id": "con-1",
+                "deal_id": "deal-1",
                 "time": "10:30 AM",
                 "date": "17 Aug 2026",
                 "performed_by": "Amit Sharma",
+                "performed_by_id": "usr-3",
                 "notes": "Discussed 120-seat expansion across Bangalore and Mumbai development centers."
             },
             {
@@ -623,9 +807,13 @@ class CRMDatabase:
                 "type": "Email",
                 "title": "Enterprise Proposal & Pricing breakdown sent",
                 "customer_name": "FinEdge Systems",
+                "company_id": "comp-2",
+                "contact_id": "con-3",
+                "deal_id": "deal-2",
                 "time": "11:45 AM",
                 "date": "17 Aug 2026",
                 "performed_by": "Priya Patil",
+                "performed_by_id": "usr-2",
                 "notes": "Attached revised quotation with 3-year locking price protection."
             },
             {
@@ -633,9 +821,13 @@ class CRMDatabase:
                 "type": "Meeting",
                 "title": "Product demonstration & AI assistant walkthrough",
                 "customer_name": "Bharat Logistics",
+                "company_id": "comp-3",
+                "contact_id": "con-4",
+                "deal_id": "deal-3",
                 "time": "02:00 PM",
                 "date": "17 Aug 2026",
                 "performed_by": "Amit Sharma",
+                "performed_by_id": "usr-3",
                 "notes": "Demonstrated natural language querying of company fleet policies."
             },
             {
@@ -643,14 +835,32 @@ class CRMDatabase:
                 "type": "Note",
                 "title": "GSTIN verification completed",
                 "customer_name": "GreenGrid Energy",
+                "company_id": "comp-4",
+                "contact_id": "con-5",
+                "deal_id": "deal-4",
                 "time": "04:15 PM",
                 "date": "16 Aug 2026",
                 "performed_by": "Sneha Kulkarni",
+                "performed_by_id": "usr-4",
                 "notes": "GST portal confirmed active status under Karnataka commercial tax zone."
+            },
+            {
+                "id": "act-5",
+                "type": "Call",
+                "title": "Initial qualifying call — Apex Medicare",
+                "customer_name": "Apex Medicare Solutions",
+                "company_id": None,
+                "contact_id": None,
+                "deal_id": None,
+                "time": "09:00 AM",
+                "date": "16 Aug 2026",
+                "performed_by": "Rohan Joshi",
+                "performed_by_id": "usr-5",
+                "notes": "Lead expressed interest in patient portal and doctor scheduling module."
             }
         ]
 
-        # 8. Calendar Events
+        # 8. Calendar Events — with entity links
         self.events = [
             {
                 "id": "evt-1",
@@ -660,6 +870,9 @@ class CRMDatabase:
                 "time": "10:00 AM",
                 "duration": "45 mins",
                 "customer_name": "TechNova Solutions",
+                "company_id": "comp-1",
+                "contact_id": "con-1",
+                "deal_id": "deal-1",
                 "attendees": ["Amit Sharma", "Rahul Sharma", "Vikram Deshmukh"],
                 "location": "Google Meet: meet.google.com/nex-tech-cst",
                 "description": "Executive walkthrough of Nexora CRM security protocols and role-based permissions."
@@ -672,6 +885,9 @@ class CRMDatabase:
                 "time": "02:30 PM",
                 "duration": "30 mins",
                 "customer_name": "FinEdge Systems",
+                "company_id": "comp-2",
+                "contact_id": "con-3",
+                "deal_id": "deal-2",
                 "attendees": ["Priya Patil", "Ananya Kulkarni"],
                 "location": "Google Meet: meet.google.com/fin-edge-rev",
                 "description": "Review final MSA contract draft and confirm payment terms."
@@ -684,6 +900,9 @@ class CRMDatabase:
                 "time": "11:00 AM",
                 "duration": "60 mins",
                 "customer_name": "Bharat Logistics",
+                "company_id": "comp-3",
+                "contact_id": "con-4",
+                "deal_id": "deal-3",
                 "attendees": ["Amit Sharma", "Harish Verma", "Kabir Mehta"],
                 "location": "Bharat Logistics HQ, Connaught Place, New Delhi",
                 "description": "Presentation to the board of directors regarding multi-city CRM deployment."
@@ -696,6 +915,9 @@ class CRMDatabase:
                 "time": "04:00 PM",
                 "duration": "30 mins",
                 "customer_name": "EduSphere Technologies",
+                "company_id": "comp-5",
+                "contact_id": None,
+                "deal_id": "deal-5",
                 "attendees": ["Rohan Joshi", "Deepak Rao"],
                 "location": "Zoom Meeting",
                 "description": "Technical check for student enrollment lead triggers."
@@ -711,9 +933,12 @@ class CRMDatabase:
                 "file_type": "PDF",
                 "uploaded_by": "Admin",
                 "upload_date": "17 Aug 2026",
+                "pages_count": 12,
                 "chunks_count": 92,
-                "status": "Indexed ✓",
+                "status": "Indexed",
+                "processing_stage": "indexed",
                 "file_size": "2.4 MB",
+                "last_indexed": "17 Aug 2026 15:30 IST",
                 "content_summary": "Guidelines for enterprise tiered discounts, annual contract payment terms, and manager escalation thresholds.",
                 "chunks": [
                     {
@@ -741,9 +966,12 @@ class CRMDatabase:
                 "file_type": "PDF",
                 "uploaded_by": "Sneha Kulkarni",
                 "upload_date": "15 Aug 2026",
+                "pages_count": 18,
                 "chunks_count": 147,
-                "status": "Indexed ✓",
+                "status": "Indexed",
+                "processing_stage": "indexed",
                 "file_size": "1.8 MB",
+                "last_indexed": "15 Aug 2026 11:15 IST",
                 "content_summary": "Standard resolution times, severity levels (P1 to P4), uptime guarantees (99.9%), and customer escalation matrix.",
                 "chunks": [
                     {
@@ -771,9 +999,12 @@ class CRMDatabase:
                 "file_type": "DOCX",
                 "uploaded_by": "Admin",
                 "upload_date": "16 Aug 2026",
+                "pages_count": 8,
                 "chunks_count": 64,
-                "status": "Indexed ✓",
+                "status": "Indexed",
+                "processing_stage": "indexed",
                 "file_size": "950 KB",
+                "last_indexed": "16 Aug 2026 09:45 IST",
                 "content_summary": "Mandatory Indian KYC documentation: GSTIN Certificate, PAN Card, Registered Address proof, and Authorized Signatory Letter.",
                 "chunks": [
                     {
@@ -793,9 +1024,12 @@ class CRMDatabase:
                 "file_type": "PDF",
                 "uploaded_by": "Amit Sharma",
                 "upload_date": "17 Aug 2026",
+                "pages_count": 24,
                 "chunks_count": 184,
-                "status": "Indexed ✓",
+                "status": "Indexed",
+                "processing_stage": "indexed",
                 "file_size": "4.1 MB",
+                "last_indexed": "17 Aug 2026 16:00 IST",
                 "content_summary": "Detailed feature comparison between Starter, Growth, Enterprise, and Sovereign Cloud tiers.",
                 "chunks": [
                     {
@@ -819,7 +1053,7 @@ class CRMDatabase:
                 "type": "alert",
                 "timestamp": "10 mins ago",
                 "is_read": False,
-                "action_link": "/leads",
+                "action_link": "leads",
                 "action_label": "View Lead"
             },
             {
@@ -829,7 +1063,7 @@ class CRMDatabase:
                 "type": "warning",
                 "timestamp": "1 hour ago",
                 "is_read": False,
-                "action_link": "/deals",
+                "action_link": "deals",
                 "action_label": "Review Deal"
             },
             {
@@ -839,7 +1073,7 @@ class CRMDatabase:
                 "type": "warning",
                 "timestamp": "2 hours ago",
                 "is_read": False,
-                "action_link": "/tasks",
+                "action_link": "tasks",
                 "action_label": "Open Task"
             },
             {
@@ -849,7 +1083,7 @@ class CRMDatabase:
                 "type": "alert",
                 "timestamp": "4 hours ago",
                 "is_read": True,
-                "action_link": "/companies",
+                "action_link": "companies",
                 "action_label": "View Company"
             },
             {
@@ -859,7 +1093,7 @@ class CRMDatabase:
                 "type": "success",
                 "timestamp": "Yesterday",
                 "is_read": True,
-                "action_link": "/knowledge",
+                "action_link": "knowledge",
                 "action_label": "Inspect Knowledge"
             }
         ]
@@ -873,7 +1107,10 @@ class CRMDatabase:
                 "user_role": "SALES_EXECUTIVE",
                 "action": "Updated Deal Stage",
                 "entity": "TechNova Solutions - Enterprise CRM",
-                "details": "Moved deal from Proposal Sent to Negotiation (Value: ₹4,50,000)"
+                "entity_id": "deal-1",
+                "details": "Moved deal from Proposal Sent to Negotiation (Value: ₹4,50,000)",
+                "before_value": "Proposal Sent",
+                "after_value": "Negotiation"
             },
             {
                 "id": "log-2",
@@ -882,7 +1119,10 @@ class CRMDatabase:
                 "user_role": "ADMIN",
                 "action": "Uploaded Document",
                 "entity": "Product Catalog & Feature Matrix 2026.pdf",
-                "details": "Vectorized 184 chunks into RAG Knowledge Base"
+                "entity_id": "doc-4",
+                "details": "Vectorized 184 chunks into RAG Knowledge Base",
+                "before_value": None,
+                "after_value": "Indexed (184 chunks)"
             },
             {
                 "id": "log-3",
@@ -891,7 +1131,10 @@ class CRMDatabase:
                 "user_role": "SALES_MANAGER",
                 "action": "Created Task",
                 "entity": "MDS-2: Finalize FinEdge sales deck",
-                "details": "Assigned to Priya Patil with priority Low, due 19 Aug 2026"
+                "entity_id": "MDS-2",
+                "details": "Assigned to Priya Patil with priority Low, due 19 Aug 2026",
+                "before_value": None,
+                "after_value": "In progress"
             },
             {
                 "id": "log-4",
@@ -900,7 +1143,10 @@ class CRMDatabase:
                 "user_role": "SALES_EXECUTIVE",
                 "action": "Created Lead",
                 "entity": "Suresh Iyer (Apex Medicare Solutions)",
-                "details": "Lead source: Google Ads, Value: ₹2,90,000"
+                "entity_id": "lead-4",
+                "details": "Lead source: Google Ads, Value: ₹2,90,000",
+                "before_value": None,
+                "after_value": "New"
             },
             {
                 "id": "log-5",
@@ -909,7 +1155,10 @@ class CRMDatabase:
                 "user_role": "SUPPORT_AGENT",
                 "action": "Logged Activity",
                 "entity": "GreenGrid Energy",
-                "details": "GSTIN verification completed on GST Portal"
+                "entity_id": "comp-4",
+                "details": "GSTIN verification completed on GST Portal",
+                "before_value": None,
+                "after_value": "Activity logged"
             }
         ]
 
@@ -927,15 +1176,18 @@ class CRMDatabase:
             "currency_symbol": "₹",
             "fiscal_year_start": "April",
             "timezone": "Asia/Kolkata",
-            "ai_model": "Nexora Enterprise RAG Engine v2.4",
+            "ai_model": "Nexora Deterministic Scoring Engine v2.4",
+            "embedding_model": "TF-IDF + Cosine Similarity (in-memory)",
             "vector_search_top_k": 4,
+            "retrieval_threshold": 0.35,
             "theme": "light",
             "enable_slack_webhook": True,
             "enable_whatsapp_crm": True
         }
 
     # CRUD helpers
-    def add_audit_log(self, user_name: str, user_role: str, action: str, entity: str, details: str):
+    def add_audit_log(self, user_name: str, user_role: str, action: str, entity: str, details: str,
+                      entity_id: str = None, before_value: str = None, after_value: str = None):
         now_str = datetime.now().strftime("%d %b %Y %H:%M IST")
         new_log = {
             "id": f"log-{len(self.audit_logs) + 1}",
@@ -944,7 +1196,10 @@ class CRMDatabase:
             "user_role": user_role,
             "action": action,
             "entity": entity,
-            "details": details
+            "entity_id": entity_id,
+            "details": details,
+            "before_value": before_value,
+            "after_value": after_value
         }
         self.audit_logs.insert(0, new_log)
         return new_log

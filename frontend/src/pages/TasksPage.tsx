@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { useCRM } from '../context/CRMContext';
 import { Task, TaskStatus, Priority } from '../types/crm';
+import { usePermissions } from '../hooks/usePermissions';
 import { 
   Plus, Search, Filter, LayoutGrid, Table, Calendar, Clock, 
-  MessageSquare, ChevronRight, CheckCircle2, AlertCircle, Sparkles, SlidersHorizontal, Share2, MoreHorizontal, Edit3
+  MessageSquare, ChevronRight, CheckCircle2, AlertCircle, Sparkles, 
+  SlidersHorizontal, Share2, MoreHorizontal, Edit3, Download, RefreshCw, X, Bot
 } from 'lucide-react';
 import { QuickCreateModal } from '../components/layout/QuickCreateModal';
 
 export const TasksPage: React.FC = () => {
-  const { tasks, updateTaskStatus, updateTask, deleteTask } = useCRM();
+  const { tasks, updateTaskStatus, updateTask, deleteTask, loading } = useCRM();
+  const { canManageTasks, canDeleteRecords } = usePermissions();
   const [activeView, setActiveView] = useState<'Board' | 'Spreadsheet' | 'Calendar' | 'Timeline'>('Board');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPriority, setSelectedPriority] = useState<string>('All');
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newComment, setNewComment] = useState('');
@@ -21,11 +25,13 @@ export const TasksPage: React.FC = () => {
 
   const columns: TaskStatus[] = ["Backlog", "In progress", "Validation", "Done"];
 
-  const filteredTasks = tasks.filter(t => 
-    t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    t.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTasks = tasks.filter(t => {
+    const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          t.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          t.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesPriority = selectedPriority === 'All' || t.priority === selectedPriority;
+    return matchesSearch && matchesPriority;
+  });
 
   const getStatusCount = (status: TaskStatus) => tasks.filter(t => t.status === status).length;
 
@@ -36,7 +42,7 @@ export const TasksPage: React.FC = () => {
   const handleDrop = async (e: React.DragEvent, status: TaskStatus) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('text/plain');
-    if (taskId) {
+    if (taskId && canManageTasks) {
       await updateTaskStatus(taskId, status);
     }
   };
@@ -50,9 +56,22 @@ export const TasksPage: React.FC = () => {
     setNewComment('');
   };
 
+  const exportTasksCSV = () => {
+    const headers = "ID,Title,Customer,Status,Priority,Due Date,Assignee,AI Generated\n";
+    const rows = filteredTasks.map(t => 
+      `"${t.id}","${t.title}","${t.customer_name}","${t.status}","${t.priority}","${t.due_date}","${t.assigned_to}",${t.is_ai_generated || false}`
+    ).join("\n");
+    const blob = new Blob([headers + rows], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tasks-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Top Header matching Reference Screenshot 2 */}
+      {/* Top Header */}
       <div style={{
         display: 'flex',
         alignItems: 'flex-start',
@@ -62,119 +81,81 @@ export const TasksPage: React.FC = () => {
       }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-            Tasks report
+            Tasks & Milestones
           </h1>
           <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            Stay on top of your customer tasks, monitor progress, and track status. Streamline your workflow and transform how you deliver results.
+            Stay on top of enterprise sales actions, team follow-ups, and AI-generated recommended tasks.
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button className="btn btn-secondary btn-sm" style={{ gap: '6px' }}>
-            <SlidersHorizontal size={14} />
-            <span>Manage</span>
+          <button onClick={exportTasksCSV} className="btn btn-secondary btn-sm" title="Export tasks to CSV">
+            <Download size={14} />
+            <span>Export CSV</span>
           </button>
-          <button className="btn btn-secondary btn-sm" style={{ gap: '6px' }}>
-            <Share2 size={14} />
-            <span>Share</span>
-          </button>
-          <button onClick={() => setCreateOpen(true)} className="btn btn-primary btn-sm" style={{ gap: '6px' }}>
-            <Plus size={15} />
-            <span>Create task</span>
-          </button>
+          {canManageTasks && (
+            <button onClick={() => setCreateOpen(true)} className="btn btn-primary btn-sm" style={{ gap: '6px' }}>
+              <Plus size={15} />
+              <span>Create Task</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Analytics Summary Widgets Grid (Screenshot 2 exact composition) */}
+      {/* Analytics Summary Widgets */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-        {/* Widget 1: Task Status Distribution Card */}
-        <div className="card" style={{ padding: '18px 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Task status</span>
-            <div style={{ display: 'flex', gap: '6px', color: 'var(--text-muted)' }}>
-              <Edit3 size={13} />
-              <MoreHorizontal size={13} />
-            </div>
+        <div className="card" style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Total Tasks</span>
+            <span className="badge badge-neutral">{tasks.length} Total</span>
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
-            <div>
-              <div style={{ fontSize: '24px', fontWeight: 800 }}>{getStatusCount('Backlog') || 24}</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Backlog 📁</div>
-            </div>
-            <div>
-              <div style={{ fontSize: '24px', fontWeight: 800 }}>{getStatusCount('In progress') || 4}</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>In progress ⚡</div>
-            </div>
-            <div>
-              <div style={{ fontSize: '24px', fontWeight: 800 }}>{getStatusCount('Validation') || 7}</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Validation 🪄</div>
-            </div>
-          </div>
-
-          {/* Gradient Distribution Bar (Screenshot 2 Purple/Violet aesthetic) */}
-          <div style={{
-            height: '24px',
-            borderRadius: '6px',
-            background: 'linear-gradient(90deg, #6366F1 0%, #8B5CF6 35%, #A855F7 70%, #EC4899 100%)',
-            opacity: 0.85
-          }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            <span>1d</span>
-            <span>7d</span>
+          <div style={{ fontSize: '22px', fontWeight: 800 }}>{tasks.length}</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {getStatusCount("Done")} completed • {getStatusCount("In progress")} in flight
           </div>
         </div>
 
-        {/* Widget 2: Comments metric */}
-        <div className="card" style={{ padding: '18px 20px' }}>
+        <div className="card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>💬 Comments</span>
-            <MoreHorizontal size={13} color="var(--text-muted)" />
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>In Progress</span>
+            <span className="badge badge-normal">Active</span>
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800 }}>109</div>
-          <div style={{ fontSize: '12px', color: '#EF4444', fontWeight: 600, marginTop: '2px' }}>
-            ↘ 10.2% (7d)
+          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-blue)' }}>
+            {getStatusCount("In progress")}
           </div>
-          <div style={{ marginTop: '12px', height: '28px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-            {[4, 8, 12, 6, 14, 18, 10, 16, 22, 12, 8].map((h, i) => (
-              <div key={i} style={{ width: '6px', height: `${h}px`, backgroundColor: '#F59E0B', borderRadius: '50%', opacity: 0.8 }} />
-            ))}
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Next due: Today (Amit Sharma)
           </div>
         </div>
 
-        {/* Widget 3: Activity / Commits */}
-        <div className="card" style={{ padding: '18px 20px' }}>
+        <div className="card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>⚡ Activity / Updates</span>
-            <MoreHorizontal size={13} color="var(--text-muted)" />
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Validation Stage</span>
+            <span className="badge badge-neutral">Review</span>
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800 }}>27</div>
-          <div style={{ fontSize: '12px', color: '#10B981', fontWeight: 600, marginTop: '2px' }}>
-            ↗ 2.9% (7d)
+          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-purple)' }}>
+            {getStatusCount("Validation")}
           </div>
-          <div style={{ marginTop: '12px', height: '28px', display: 'flex', alignItems: 'flex-end', gap: '4px' }}>
-            {[6, 12, 8, 16, 22, 14, 26].map((h, i) => (
-              <div key={i} style={{ width: '8px', height: `${h}px`, backgroundColor: '#F97316', borderRadius: '2px' }} />
-            ))}
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Awaiting stakeholder confirmation
           </div>
         </div>
 
-        {/* Widget 4: Burndown Chart (Line Estimation) */}
-        <div className="card" style={{ padding: '18px 20px', gridColumn: 'span 1' }}>
+        <div className="card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>📉 Burndown chart (estimate pts)</span>
-            <MoreHorizontal size={13} color="var(--text-muted)" />
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Completed</span>
+            <span className="badge badge-low">Done</span>
           </div>
-          <div style={{ height: '70px', position: 'relative', marginTop: '6px' }}>
-            <svg width="100%" height="70" viewBox="0 0 200 70" preserveAspectRatio="none">
-              <path d="M0,10 L30,12 L60,25 L90,26 L120,45 L150,52 L180,60 L200,65" fill="none" stroke="#6366F1" strokeWidth="2.5" />
-              <path d="M0,15 L40,18 L80,30 L120,38 L160,50 L200,68" fill="none" stroke="#F97316" strokeWidth="2" strokeDasharray="3,3" />
-            </svg>
+          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+            {getStatusCount("Done")}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--accent-emerald)', marginTop: '4px' }}>
+            +18% velocity vs last week
           </div>
         </div>
       </div>
 
-      {/* View Switcher Tabs & Filters Bar (Screenshot 2 matching) */}
+      {/* Controls & Filter Bar */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -186,7 +167,7 @@ export const TasksPage: React.FC = () => {
       }}>
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '4px', backgroundColor: 'var(--bg-muted)', padding: '3px', borderRadius: '8px' }}>
-          {(['Spreadsheet', 'Board', 'Calendar', 'Timeline'] as const).map(tab => {
+          {(['Board', 'Spreadsheet'] as const).map(tab => {
             const active = activeView === tab;
             return (
               <button
@@ -224,15 +205,28 @@ export const TasksPage: React.FC = () => {
             <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '10px' }} />
           </div>
 
-          <button className="btn btn-secondary btn-sm" style={{ height: '34px' }}>
-            <Filter size={14} />
-            <span>Filter</span>
-          </button>
+          <select
+            className="input-control"
+            style={{ width: '130px', fontSize: '13px', height: '34px' }}
+            value={selectedPriority}
+            onChange={e => setSelectedPriority(e.target.value)}
+          >
+            <option value="All">All Priority</option>
+            <option value="Urgent">Urgent</option>
+            <option value="High">High</option>
+            <option value="Normal">Normal</option>
+            <option value="Low">Low</option>
+          </select>
         </div>
       </div>
 
-      {/* View Content: Board View (Default) */}
-      {activeView === 'Board' ? (
+      {/* Main View Content */}
+      {loading ? (
+        <div className="card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <RefreshCw size={24} style={{ margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
+          <p>Loading task workflow...</p>
+        </div>
+      ) : activeView === 'Board' ? (
         <div className="kanban-board">
           {columns.map(status => {
             const colTasks = filteredTasks.filter(t => t.status === status);
@@ -272,7 +266,6 @@ export const TasksPage: React.FC = () => {
                       {colTasks.length}
                     </span>
                   </div>
-                  <MoreHorizontal size={15} color="var(--text-muted)" />
                 </div>
 
                 {/* Cards */}
@@ -280,27 +273,35 @@ export const TasksPage: React.FC = () => {
                   {colTasks.map(task => (
                     <div
                       key={task.id}
-                      draggable
+                      draggable={canManageTasks}
                       onDragStart={e => e.dataTransfer.setData('text/plain', task.id)}
                       onClick={() => setSelectedTask(task)}
                       className="deal-card"
+                      style={{ cursor: 'pointer' }}
                     >
-                      {/* Top ID & Priority Tag (Screenshot 2 exact style) */}
+                      {/* Top ID & Priority Tag */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>
                           🔗 {task.id}
                         </span>
-                        <span className={`badge badge-${task.priority.toLowerCase()}`} style={{ fontSize: '11px' }}>
-                          {task.priority}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {task.is_ai_generated && (
+                            <span className="badge badge-accent" style={{ fontSize: '10px', padding: '1px 5px' }}>
+                              🤖 AI
+                            </span>
+                          )}
+                          <span className={`badge badge-${task.priority.toLowerCase()}`} style={{ fontSize: '11px' }}>
+                            {task.priority}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Title */}
-                      <h4 style={{ fontSize: '14px', fontWeight: 700, lineHeight: 1.3, marginBottom: '6px' }}>
+                      <h4 style={{ fontSize: '13.5px', fontWeight: 700, lineHeight: 1.3, marginBottom: '6px' }}>
                         {task.title}
                       </h4>
 
-                      {/* Project Branch Indicator (Screenshot 2 tree style) */}
+                      {/* Customer / Project */}
                       <div style={{
                         fontSize: '12px',
                         color: 'var(--text-muted)',
@@ -313,7 +314,7 @@ export const TasksPage: React.FC = () => {
                         <span>{task.customer_name}</span>
                       </div>
 
-                      {/* Due Date & Assignee Avatar (Screenshot 2 exact style) */}
+                      {/* Due Date & Assignee Avatar */}
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -347,19 +348,19 @@ export const TasksPage: React.FC = () => {
           })}
         </div>
       ) : (
-        /* Table View */
+        /* SPREADSHEET TABLE VIEW */
         <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Task ID</th>
                 <th>Title</th>
-                <th>Client / Project</th>
+                <th>Client / Account</th>
                 <th>Status</th>
                 <th>Priority</th>
                 <th>Due Date</th>
                 <th>Assignee</th>
-                <th>Actions</th>
+                <th>Source</th>
               </tr>
             </thead>
             <tbody>
@@ -368,24 +369,16 @@ export const TasksPage: React.FC = () => {
                   <td style={{ fontWeight: 700 }}>{t.id}</td>
                   <td style={{ fontWeight: 600 }}>{t.title}</td>
                   <td>{t.customer_name}</td>
-                  <td>
-                    <span className="badge badge-primary">{t.status}</span>
-                  </td>
-                  <td>
-                    <span className={`badge badge-${t.priority.toLowerCase()}`}>{t.priority}</span>
-                  </td>
+                  <td><span className="badge badge-primary">{t.status}</span></td>
+                  <td><span className={`badge badge-${t.priority.toLowerCase()}`}>{t.priority}</span></td>
                   <td>{t.due_date}</td>
                   <td>{t.assigned_to}</td>
                   <td>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation();
-                        updateTaskStatus(t.id, t.status === 'Done' ? 'In progress' : 'Done');
-                      }}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      {t.status === 'Done' ? 'Reopen' : 'Complete'}
-                    </button>
+                    {t.is_ai_generated ? (
+                      <span className="badge badge-accent">🤖 AI Generated</span>
+                    ) : (
+                      <span className="badge badge-neutral">User Created</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -394,78 +387,85 @@ export const TasksPage: React.FC = () => {
         </div>
       )}
 
-      {/* Task Details & Comments Drawer */}
+      {/* Task Drawer / Detail Modal */}
       {selectedTask && (
         <div className="modal-overlay" onClick={() => setSelectedTask(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
-              <div>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-muted)' }}>{selectedTask.id}</span>
                 <span className={`badge badge-${selectedTask.priority.toLowerCase()}`}>{selectedTask.priority}</span>
-                <span style={{ fontSize: '13px', color: 'var(--text-muted)', marginLeft: '8px', fontWeight: 600 }}>{selectedTask.id}</span>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, marginTop: '6px' }}>{selectedTask.title}</h2>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Project: {selectedTask.customer_name}</div>
+                {selectedTask.is_ai_generated && <span className="badge badge-accent">🤖 AI</span>}
               </div>
-              <button onClick={() => setSelectedTask(null)} className="btn-ghost btn-icon">✕</button>
+              <button onClick={() => setSelectedTask(null)} className="btn btn-ghost btn-icon"><X size={16} /></button>
             </div>
 
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              {/* Status Switcher */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>UPDATE STATUS</label>
-                <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
-                  {columns.map(st => (
-                    <button
-                      key={st}
-                      onClick={async () => {
-                        await updateTaskStatus(selectedTask.id, st);
-                        setSelectedTask({ ...selectedTask, status: st });
-                      }}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        border: selectedTask.status === st ? '1px solid var(--accent-blue)' : '1px solid var(--border-color)',
-                        backgroundColor: selectedTask.status === st ? 'var(--primary-light)' : 'var(--bg-muted)',
-                        color: selectedTask.status === st ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                        fontSize: '12.5px',
-                        fontWeight: selectedTask.status === st ? 700 : 500,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {st}
-                    </button>
-                  ))}
+                <h3 style={{ fontSize: '16px', fontWeight: 700 }}>{selectedTask.title}</h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  Account: <strong>{selectedTask.customer_name}</strong>
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Status</label>
+                  <select
+                    className="input-control"
+                    value={selectedTask.status}
+                    onChange={e => {
+                      updateTaskStatus(selectedTask.id, e.target.value as any);
+                      setSelectedTask({ ...selectedTask, status: e.target.value as any });
+                    }}
+                    style={{ marginTop: '4px' }}
+                  >
+                    <option value="Backlog">Backlog</option>
+                    <option value="In progress">In progress</option>
+                    <option value="Validation">Validation</option>
+                    <option value="Done">Done</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Due Date</label>
+                  <div style={{ padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: '6px', marginTop: '4px', fontWeight: 600 }}>
+                    {selectedTask.due_date}
+                  </div>
                 </div>
               </div>
 
-              {/* Task Details */}
-              <div style={{ fontSize: '13px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                {selectedTask.description || 'Follow up with stakeholders regarding technical evaluation and commercial proposal terms.'}
-              </div>
+              {selectedTask.description && (
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Description</label>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.5 }}>
+                    {selectedTask.description}
+                  </p>
+                </div>
+              )}
 
-              {/* Comments Stream */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>
-                  ACTIVITY & COMMENTS ({(taskComments[selectedTask.id]?.length || 0)})
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '160px', overflowY: 'auto' }}>
+              {/* Comments Section */}
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>Internal Discussion Notes</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto' }}>
                   {(taskComments[selectedTask.id] || []).map((comm, idx) => (
-                    <div key={idx} style={{ padding: '8px 12px', borderRadius: '6px', backgroundColor: 'var(--bg-muted)', fontSize: '12.5px' }}>
-                      💬 {comm}
+                    <div key={idx} style={{ padding: '6px 10px', background: 'var(--bg-muted)', borderRadius: '6px', fontSize: '12.5px' }}>
+                      {comm}
                     </div>
                   ))}
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                   <input
-                    type="text"
-                    placeholder="Add an update or comment..."
                     className="input-control"
+                    placeholder="Add an update note..."
                     value={newComment}
                     onChange={e => setNewComment(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleAddComment(selectedTask.id); }}
+                    style={{ fontSize: '12.5px' }}
                   />
-                  <button onClick={() => handleAddComment(selectedTask.id)} className="btn btn-primary btn-sm">
-                    Post
+                  <button className="btn btn-secondary btn-sm" onClick={() => handleAddComment(selectedTask.id)}>
+                    Add
                   </button>
                 </div>
               </div>
@@ -474,10 +474,11 @@ export const TasksPage: React.FC = () => {
         </div>
       )}
 
+      {/* Quick Create Modal */}
       <QuickCreateModal
         isOpen={createOpen}
-        onClose={() => setCreateOpen(false)}
         defaultType="task"
+        onClose={() => setCreateOpen(false)}
       />
     </div>
   );

@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { useCRM } from '../context/CRMContext';
 import { Company } from '../types/crm';
-import { Plus, Search, Building2, MapPin, Shield, Sparkles, TrendingUp, AlertTriangle, ArrowRight } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
+import { 
+  Plus, Search, Building2, MapPin, Shield, Sparkles, TrendingUp, 
+  AlertTriangle, ArrowRight, Download, RefreshCw 
+} from 'lucide-react';
 import { QuickCreateModal } from '../components/layout/QuickCreateModal';
+import { CompanyDetailModal } from '../components/modals/CompanyDetailModal';
 
 export const CompaniesPage: React.FC = () => {
-  const { companies, deals, contacts, createTask } = useCRM();
+  const { companies, deals, contacts, createTask, loading } = useCRM();
+  const { canManageCompanies } = usePermissions();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -14,8 +20,21 @@ export const CompaniesPage: React.FC = () => {
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.industry.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.gstin.toLowerCase().includes(searchQuery.toLowerCase())
+    (c.gstin && c.gstin.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const exportCompaniesCSV = () => {
+    const headers = "ID,Name,Industry,City,State,GSTIN,Total Revenue,Status,Health,Churn Risk\n";
+    const rows = filteredCompanies.map(c => 
+      `"${c.id}","${c.name}","${c.industry}","${c.city}","${c.state}","${c.gstin}",${c.total_revenue},"${c.customer_status}",${c.customer_health},"${c.churn_risk}"`
+    ).join("\n");
+    const blob = new Blob([headers + rows], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `companies-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -29,15 +48,23 @@ export const CompaniesPage: React.FC = () => {
           </p>
         </div>
 
-        <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
-          <Plus size={16} />
-          <span>Add Company</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button onClick={exportCompaniesCSV} className="btn btn-secondary" title="Export companies to CSV">
+            <Download size={15} />
+            <span>Export CSV</span>
+          </button>
+          {canManageCompanies && (
+            <button onClick={() => setCreateOpen(true)} className="btn btn-primary">
+              <Plus size={16} />
+              <span>Add Company</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter and Search */}
       <div className="card" style={{ padding: '14px 18px', display: 'flex', gap: '12px' }}>
-        <div style={{ position: 'relative', width: '300px' }}>
+        <div style={{ position: 'relative', width: '320px' }}>
           <input
             type="text"
             placeholder="Search company, GSTIN, city..."
@@ -51,169 +78,139 @@ export const CompaniesPage: React.FC = () => {
       </div>
 
       {/* Companies Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '18px' }}>
-        {filteredCompanies.map(comp => {
-          const compDeals = deals.filter(d => d.company_name === comp.name);
-          const compContacts = contacts.filter(c => c.company === comp.name);
+      {loading ? (
+        <div className="card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <RefreshCw size={24} style={{ margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
+          <p>Loading company accounts...</p>
+        </div>
+      ) : filteredCompanies.length === 0 ? (
+        <div className="card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <Building2 size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+          <h3 style={{ fontSize: '16px', fontWeight: 600 }}>No companies found</h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>Try adjusting your search criteria.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '18px' }}>
+          {filteredCompanies.map(comp => {
+            const compDeals = deals.filter(d => d.company_name === comp.name || d.company_id === comp.id);
+            const compContacts = contacts.filter(c => c.company === comp.name || c.company_id === comp.id);
 
-          return (
-            <div
-              key={comp.id}
-              onClick={() => setSelectedCompany(comp)}
-              className="card"
-              style={{
-                padding: '20px',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between'
-              }}
-            >
-              <div>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h3 style={{ fontSize: '16px', fontWeight: 800 }}>{comp.name}</h3>
-                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <MapPin size={12} /> {comp.city}, {comp.state}
+            return (
+              <div
+                key={comp.id}
+                onClick={() => setSelectedCompany(comp)}
+                className="card"
+                style={{
+                  padding: '20px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  transition: 'all 0.15s'
+                }}
+              >
+                <div>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 800 }}>{comp.name}</h3>
+                      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <MapPin size={12} /> {comp.city}, {comp.state}
+                      </div>
+                    </div>
+                    <span className={`badge ${comp.customer_status === 'Customer' ? 'badge-low' : 'badge-primary'}`}>
+                      {comp.customer_status}
+                    </span>
+                  </div>
+
+                  {/* Tags & GSTIN */}
+                  <div style={{ marginTop: '14px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <span className="badge badge-neutral">{comp.industry}</span>
+                    {comp.gstin && (
+                      <span className="badge badge-neutral" style={{ fontFamily: 'monospace' }}>GSTIN: {comp.gstin}</span>
+                    )}
+                  </div>
+
+                  {/* Metrics Bar */}
+                  <div style={{
+                    marginTop: '16px',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '8px',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    backgroundColor: 'var(--bg-muted)',
+                    textAlign: 'center'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Revenue</span>
+                      <div style={{ fontSize: '13px', fontWeight: 800 }}>₹{(comp.total_revenue / 100000).toFixed(1)}L</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Contacts</span>
+                      <div style={{ fontSize: '13px', fontWeight: 800 }}>{compContacts.length || comp.contacts_count}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Active Deals</span>
+                      <div style={{ fontSize: '13px', fontWeight: 800 }}>{compDeals.length || comp.active_deals_count}</div>
                     </div>
                   </div>
-                  <span className={`badge ${comp.customer_status === 'Customer' ? 'badge-low' : 'badge-primary'}`}>
-                    {comp.customer_status}
-                  </span>
+
+                  {/* Churn Risk */}
+                  <div style={{
+                    marginTop: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '12.5px',
+                    color: 'var(--text-secondary)'
+                  }}>
+                    <span>Customer Health:</span>
+                    <span style={{
+                      fontWeight: 700,
+                      color: comp.customer_health >= 75 ? 'var(--accent-emerald)' : 'var(--accent-amber)'
+                    }}>
+                      {comp.customer_health}/100 ({comp.churn_risk} Risk)
+                    </span>
+                  </div>
                 </div>
 
-                {/* Tags & GSTIN */}
-                <div style={{ marginTop: '14px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  <span className="badge badge-neutral">{comp.industry}</span>
-                  <span className="badge badge-neutral" style={{ fontFamily: 'monospace' }}>GSTIN: {comp.gstin}</span>
-                </div>
-
-                {/* Metrics Bar */}
+                {/* Footer Action */}
                 <div style={{
                   marginTop: '16px',
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr 1fr',
-                  gap: '8px',
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  backgroundColor: 'var(--bg-muted)',
-                  textAlign: 'center'
+                  paddingTop: '12px',
+                  borderTop: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
                 }}>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Revenue</div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, marginTop: '2px' }}>
-                      ₹{(comp.total_revenue / 100000).toFixed(1)} L
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Deals</div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, marginTop: '2px' }}>
-                      {compDeals.length || comp.active_deals_count}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Health</div>
-                    <div style={{
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      marginTop: '2px',
-                      color: comp.customer_health >= 80 ? '#10B981' : comp.customer_health >= 60 ? '#F59E0B' : '#EF4444'
-                    }}>
-                      {comp.customer_health}/100
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Recommendation Footer */}
-              <div style={{
-                marginTop: '14px',
-                paddingTop: '10px',
-                borderTop: '1px solid var(--border-subtle)',
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                lineHeight: 1.4
-              }}>
-                💡 <strong>AI Note:</strong> {comp.ai_recommendation || 'Account engagement is stable.'}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Company 360 Detail Modal */}
-      {selectedCompany && (
-        <div className="modal-overlay" onClick={() => setSelectedCompany(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '720px' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h2 style={{ fontSize: '20px', fontWeight: 800 }}>{selectedCompany.name}</h2>
-                  <span className="badge badge-low">{selectedCompany.customer_status}</span>
-                </div>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  {selectedCompany.industry} • {selectedCompany.city}, {selectedCompany.state} • GSTIN: <code>{selectedCompany.gstin}</code>
-                </div>
-              </div>
-              <button onClick={() => setSelectedCompany(null)} className="btn-ghost btn-icon">✕</button>
-            </div>
-
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              {/* Health and Churn Prediction */}
-              <div style={{
-                padding: '16px',
-                borderRadius: '12px',
-                backgroundColor: selectedCompany.churn_risk === 'High' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
-                border: selectedCompany.churn_risk === 'High' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 700 }}>
-                    Customer Health Score: {selectedCompany.customer_health}/100
+                  <span style={{ fontSize: '12px', color: 'var(--accent-blue)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Inspect Company 360 <ArrowRight size={13} />
                   </span>
-                  <span className={`badge ${selectedCompany.churn_risk === 'High' ? 'badge-urgent' : 'badge-low'}`}>
-                    Churn Risk: {selectedCompany.churn_risk} ({selectedCompany.churn_probability}%)
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                    Since {comp.customer_since}
                   </span>
                 </div>
-                <p style={{ fontSize: '13px', marginTop: '6px', lineHeight: 1.4 }}>
-                  {selectedCompany.ai_recommendation}
-                </p>
-                <div style={{ marginTop: '10px' }}>
-                  <button
-                    onClick={async () => {
-                      await createTask({
-                        title: `Account Action: ${selectedCompany.name}`,
-                        customer_name: selectedCompany.name,
-                        priority: 'Urgent',
-                        due_date: '22 Aug 2026',
-                        assigned_to: 'Amit Sharma'
-                      });
-                      setSelectedCompany(null);
-                    }}
-                    className="btn btn-primary btn-sm"
-                  >
-                    Schedule Retention / Renewal Task
-                  </button>
-                </div>
               </div>
-
-              {/* Company Info */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '13px' }}>
-                <div><span style={{ color: 'var(--text-muted)' }}>PAN:</span> <strong>{selectedCompany.pan}</strong></div>
-                <div><span style={{ color: 'var(--text-muted)' }}>Customer Since:</span> <strong>{selectedCompany.customer_since}</strong></div>
-                <div><span style={{ color: 'var(--text-muted)' }}>Lifetime Revenue:</span> <strong>₹{selectedCompany.total_revenue.toLocaleString('en-IN')}</strong></div>
-                <div><span style={{ color: 'var(--text-muted)' }}>Employees:</span> <strong>{selectedCompany.employees}</strong></div>
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
       )}
 
+      {/* Quick Create Modal */}
       <QuickCreateModal
         isOpen={createOpen}
-        onClose={() => setCreateOpen(false)}
         defaultType="company"
+        onClose={() => setCreateOpen(false)}
       />
+
+      {/* Company 360 Detail Modal */}
+      {selectedCompany && (
+        <CompanyDetailModal
+          company={selectedCompany}
+          onClose={() => setSelectedCompany(null)}
+        />
+      )}
     </div>
   );
 };

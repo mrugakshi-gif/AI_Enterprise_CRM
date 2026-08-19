@@ -44,6 +44,7 @@ export const api = {
   // Leads
   getLeads: () => fetchJSON<Lead[]>('/crm/leads'),
   getLeadById: (id: string) => fetchJSON<Lead>(`/crm/leads/${id}`),
+  getLeadDetail: (id: string) => fetchJSON<any>(`/crm/leads/${id}/detail`),
   createLead: (data: Partial<Lead>) => fetchJSON<Lead>('/crm/leads', {
     method: 'POST',
     body: JSON.stringify(data)
@@ -53,9 +54,15 @@ export const api = {
     body: JSON.stringify(updates)
   }),
   deleteLead: (id: string) => fetchJSON<{ success: boolean }>(`/crm/leads/${id}`, { method: 'DELETE' }),
+  convertLead: (id: string, payload: any) => fetchJSON<{ success: boolean; contact: Contact; company: Company; deal: Deal }>(`/crm/leads/${id}/convert`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
 
   // Contacts
   getContacts: () => fetchJSON<Contact[]>('/crm/contacts'),
+  getContactById: (id: string) => fetchJSON<Contact>(`/crm/contacts/${id}`),
+  getContact360: (id: string) => fetchJSON<any>(`/crm/contacts/${id}/360`),
   createContact: (data: Partial<Contact>) => fetchJSON<Contact>('/crm/contacts', {
     method: 'POST',
     body: JSON.stringify(data)
@@ -64,6 +71,7 @@ export const api = {
   // Companies
   getCompanies: () => fetchJSON<Company[]>('/crm/companies'),
   getCompanyById: (id: string) => fetchJSON<Company>(`/crm/companies/${id}`),
+  getCompany360: (id: string) => fetchJSON<any>(`/crm/companies/${id}/360`),
   createCompany: (data: Partial<Company>) => fetchJSON<Company>('/crm/companies', {
     method: 'POST',
     body: JSON.stringify(data)
@@ -71,6 +79,8 @@ export const api = {
 
   // Deals
   getDeals: () => fetchJSON<Deal[]>('/crm/deals'),
+  getDealById: (id: string) => fetchJSON<Deal>(`/crm/deals/${id}`),
+  getDealDetail: (id: string) => fetchJSON<any>(`/crm/deals/${id}/detail`),
   createDeal: (data: Partial<Deal>) => fetchJSON<Deal>('/crm/deals', {
     method: 'POST',
     body: JSON.stringify(data)

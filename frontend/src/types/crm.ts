@@ -21,6 +21,13 @@ export interface User {
   last_active: string;
 }
 
+export interface LeadScoreFactor {
+  factor: string;
+  score: number;
+  max: number;
+  detail: string;
+}
+
 export interface Lead {
   id: string;
   first_name: string;
@@ -28,6 +35,8 @@ export interface Lead {
   email: string;
   phone: string;
   company: string;
+  company_id?: string;
+  contact_id?: string;
   job_title: string;
   industry: string;
   city: string;
@@ -44,12 +53,15 @@ export interface Lead {
   ai_summary?: string;
   ai_reasons?: string[];
   ai_recommended_action?: string;
+  ai_score_factors?: LeadScoreFactor[];
+  deal_ids?: string[];
 }
 
 export interface Contact {
   id: string;
   name: string;
   company: string;
+  company_id?: string;
   designation: string;
   email: string;
   phone: string;
@@ -61,6 +73,10 @@ export interface Contact {
   created_at: string;
   ai_summary?: string;
   avatar?: string;
+  deal_ids?: string[];
+  lead_ids?: string[];
+  engagement_score?: number;
+  lead_score?: number;
 }
 
 export interface Company {
@@ -82,11 +98,15 @@ export interface Company {
   ai_recommendation?: string;
   website?: string;
   employees?: string;
+  contact_ids?: string[];
+  deal_ids?: string[];
+  lead_ids?: string[];
 }
 
 export interface Deal {
   id: string;
   company_name: string;
+  company_id?: string;
   deal_name: string;
   description: string;
   deal_value: number;
@@ -97,10 +117,14 @@ export interface Deal {
   probability: number;
   win_factors?: string[];
   risk_factor?: string;
+  risk_factors?: string[];
   ai_recommendation?: string;
   created_at: string;
   last_updated: string;
   contact_name?: string;
+  contact_id?: string;
+  days_in_stage?: number;
+  lead_id?: string;
 }
 
 export interface Task {
@@ -116,6 +140,11 @@ export interface Task {
   comments_count: number;
   created_date: string;
   description?: string;
+  related_entity_type?: string;
+  related_entity_id?: string;
+  related_company_id?: string;
+  related_contact_id?: string;
+  is_ai_generated?: boolean;
 }
 
 export interface Activity {
@@ -123,6 +152,9 @@ export interface Activity {
   type: ActivityType;
   title: string;
   customer_name: string;
+  company_id?: string;
+  contact_id?: string;
+  deal_id?: string;
   time: string;
   date: string;
   performed_by: string;
@@ -137,6 +169,9 @@ export interface CalendarEvent {
   time: string;
   duration: string;
   customer_name: string;
+  company_id?: string;
+  contact_id?: string;
+  deal_id?: string;
   attendees: string[];
   location?: string;
   description?: string;
@@ -183,7 +218,10 @@ export interface AuditLogItem {
   user_role: string;
   action: string;
   entity: string;
+  entity_id?: string;
   details: string;
+  before_value?: string;
+  after_value?: string;
 }
 
 export interface DashboardData {
@@ -228,10 +266,10 @@ export interface AIChatMessage {
   confidence?: number;
   sources?: Array<{
     title: string;
-    page: number;
-    category: string;
-    snippet: string;
-    score: number;
+    page?: number;
+    category?: string;
+    snippet?: string;
+    score?: number;
   }>;
   crm_records?: Array<{
     type: string;
@@ -263,7 +301,7 @@ export interface AIInsightsData {
     id: string;
     deal_name: string;
     company_name: string;
-    deal_value_raw: number;
+    deal_value_raw?: number;
     deal_value_formatted: string;
     win_probability: number;
     expected_revenue: string;
