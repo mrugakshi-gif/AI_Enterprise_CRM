@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, UserSquare2, Building2, KanbanSquare, 
   Activity, CheckSquare, Calendar, BarChart3, Sparkles, FileText, 
   BookOpen, Bot, ShieldAlert, KeyRound, History, Settings, 
-  HelpCircle, ChevronLeft, ChevronRight, Moon, Sun, LogOut, ChevronDown
+  HelpCircle, ChevronLeft, ChevronRight, Moon, Sun, LogOut, ChevronDown, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -48,15 +48,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const pendingTasksCount = tasks.filter(t => t.status !== 'Done').length;
 
+  const isAdminOrSuper = role === 'SUPER_ADMIN' || role === 'ADMIN';
+
   const navSections: NavSection[] = [
     {
       title: 'MAIN',
       items: [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: true },
-        { id: 'leads', label: 'Leads', icon: Users, perm: hasPermission('manage_leads') || hasPermission('view_assigned_leads') },
+        { id: 'leads', label: 'Leads', icon: Users, perm: hasPermission('manage_leads') || hasPermission('view_assigned_leads') || hasPermission('view_leads') },
         { id: 'contacts', label: 'Contacts', icon: UserSquare2, perm: hasPermission('view_contacts') || hasPermission('manage_contacts') },
         { id: 'companies', label: 'Companies', icon: Building2, perm: hasPermission('view_companies') || hasPermission('manage_companies') },
-        { id: 'deals', label: 'Deals', icon: KanbanSquare, perm: hasPermission('manage_deals') || hasPermission('manage_assigned_deals') },
+        { id: 'deals', label: 'Deals', icon: KanbanSquare, perm: hasPermission('manage_deals') || hasPermission('manage_assigned_deals') || hasPermission('view_deals') },
         { id: 'activities', label: 'Activities', icon: Activity, perm: true },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: pendingTasksCount > 0 ? pendingTasksCount : undefined, perm: true },
         { id: 'calendar', label: 'Calendar', icon: Calendar, perm: true },
@@ -65,9 +67,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'INSIGHTS',
       items: [
-        { id: 'analytics', label: 'Analytics', icon: BarChart3, perm: role !== 'SUPPORT_AGENT' },
+        { id: 'analytics', label: 'Analytics', icon: BarChart3, perm: true },
         { id: 'ai-insights', label: 'AI Insights', icon: Sparkles, badge: 'AI', badgeColor: '#7C3AED', perm: true },
-        { id: 'reports', label: 'Reports', icon: FileText, perm: role !== 'SUPPORT_AGENT' && role !== 'SALES_EXECUTIVE' },
+        { id: 'reports', label: 'Reports', icon: FileText, perm: true },
       ]
     },
     {
@@ -80,9 +82,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'ADMINISTRATION',
       items: [
-        { id: 'users', label: 'Users & Teams', icon: Users, perm: role === 'ADMIN' || role === 'SALES_MANAGER' },
-        { id: 'roles', label: 'Roles & Permissions', icon: KeyRound, perm: role === 'ADMIN' },
-        { id: 'audit-logs', label: 'Audit Logs', icon: History, perm: role === 'ADMIN' },
+        { id: 'users', label: 'Users & Teams', icon: Users, perm: isAdminOrSuper || role === 'SALES_MANAGER' },
+        { id: 'roles', label: 'Roles & Permissions', icon: KeyRound, perm: isAdminOrSuper },
+        { id: 'audit-logs', label: 'Audit Logs', icon: History, perm: isAdminOrSuper || role === 'VIEWER' },
         { id: 'settings', label: 'Settings', icon: Settings, perm: true },
       ]
     }
@@ -100,74 +102,78 @@ export const Sidebar: React.FC<SidebarProps> = ({
         padding: '20px 18px 16px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'space-between',
+        justifyContent: 'space-between',
         borderBottom: '1px solid var(--border-color)'
       }}>
-        <div 
-          onClick={() => handleNavClick('dashboard')}
-          style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-        >
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: 'linear-gradient(135deg, #0F172A 0%, #3B82F6 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#FFFFFF',
-            fontWeight: 800,
-            fontSize: '16px',
-            boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
-          }}>
-            N
-          </div>
-          {!collapsed && (
+        {!collapsed && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '16px'
+            }}>
+              N
+            </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                NEXORA
+              <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+                NEXORA<span style={{ color: 'var(--accent-blue)' }}>.AI</span>
               </div>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em' }}>
                 ENTERPRISE CRM
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="btn-ghost btn-icon"
-          style={{ padding: '6px', display: 'flex' }}
+          style={{ padding: '6px' }}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
       </div>
 
-      {/* Navigation Menu */}
-      <div style={{ flex: 1, padding: '16px 10px', overflowY: 'auto' }}>
-        {navSections.map(sec => {
-          const visibleItems = sec.items.filter(item => item.perm);
+      {/* Navigation Sections */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: collapsed ? '12px 6px' : '16px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        {navSections.map((section, sIdx) => {
+          const visibleItems = section.items.filter(item => item.perm);
           if (visibleItems.length === 0) return null;
 
           return (
-            <div key={sec.title} style={{ marginBottom: '20px' }}>
+            <div key={sIdx}>
               {!collapsed && (
                 <div style={{
                   fontSize: '11px',
                   fontWeight: 700,
                   color: 'var(--text-muted)',
-                  letterSpacing: '0.06em',
-                  padding: '4px 12px 6px',
-                  textTransform: 'uppercase'
+                  padding: '0 8px 6px',
+                  letterSpacing: '0.05em'
                 }}>
-                  {sec.title}
+                  {section.title}
                 </div>
               )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {visibleItems.map(item => {
                   const Icon = item.icon;
-                  const active = currentTab === item.id;
+                  const isActive = currentTab === item.id;
+
                   return (
                     <button
                       key={item.id}
@@ -176,33 +182,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: collapsed ? 'center' : 'space-between',
-                        padding: collapsed ? '10px 0' : '9px 12px',
+                        padding: collapsed ? '10px' : '8px 10px',
                         borderRadius: '8px',
                         border: 'none',
-                        background: active ? (isDark ? '#1E293B' : '#F1F5F9') : 'transparent',
-                        color: active ? (isDark ? '#FFFFFF' : '#0F172A') : 'var(--text-secondary)',
-                        fontWeight: active ? 600 : 500,
+                        backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                        color: isActive ? 'var(--text-inverse)' : 'var(--text-secondary)',
                         fontSize: '13.5px',
+                        fontWeight: isActive ? 600 : 500,
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
-                        position: 'relative'
+                        width: '100%'
                       }}
                       title={collapsed ? item.label : undefined}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Icon size={18} color={active ? (isDark ? '#60A5FA' : '#2563EB') : 'currentColor'} />
+                        <Icon size={18} />
                         {!collapsed && <span>{item.label}</span>}
                       </div>
 
                       {!collapsed && item.badge !== undefined && (
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          padding: '1px 6px',
-                          borderRadius: '10px',
-                          background: item.badgeColor ? item.badgeColor : 'var(--border-color)',
-                          color: item.badgeColor ? '#FFFFFF' : 'var(--text-secondary)'
-                        }}>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            backgroundColor: item.badgeColor || 'var(--bg-muted)',
+                            color: item.badgeColor ? '#fff' : 'var(--text-secondary)'
+                          }}
+                        >
                           {item.badge}
                         </span>
                       )}
@@ -215,18 +223,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Role Switcher & User Profile Footer */}
+      {/* Role Switcher & User Profile Bottom Footer */}
       <div style={{
-        padding: '14px',
+        padding: '12px 14px',
         borderTop: '1px solid var(--border-color)',
-        backgroundColor: 'var(--bg-card)'
+        backgroundColor: 'var(--bg-card)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
       }}>
-        {/* Quick Role Switcher */}
+        {/* Active Role Switcher */}
         {!collapsed && (
-          <div style={{ marginBottom: '12px', position: 'relative' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>
-              ACTIVE ROLE (RBAC)
-            </div>
+          <div style={{ position: 'relative' }}>
             <button
               onClick={() => setRoleMenuOpen(!roleMenuOpen)}
               style={{
@@ -244,7 +252,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 cursor: 'pointer'
               }}
             >
-              <span>{role.replace('_', ' ')}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ShieldCheck size={14} color="var(--accent-blue)" />
+                <span>{role.replace('_', ' ')}</span>
+              </div>
               <ChevronDown size={14} />
             </button>
 
@@ -262,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 overflow: 'hidden',
                 zIndex: 50
               }}>
-                {(['ADMIN', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SUPPORT_AGENT'] as UserRole[]).map(r => (
+                {(['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SUPPORT_AGENT', 'VIEWER'] as UserRole[]).map(r => (
                   <button
                     key={r}
                     onClick={() => {

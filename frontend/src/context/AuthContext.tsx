@@ -16,8 +16,10 @@ const defaultUser: User = {
   id: "usr-1",
   name: "Kabir Mehta",
   email: "kabir.mehta@nexoracrm.in",
-  role: "ADMIN",
+  role: "SUPER_ADMIN",
   department: "Executive Leadership",
+  team: "Executive Leadership",
+  phone: "+91 98200 11221",
   avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
   status: "Active",
   last_active: "Online now"
@@ -31,7 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return saved ? JSON.parse(saved) : defaultUser;
   });
 
-  const role = user?.role || "ADMIN";
+  const role: UserRole = user?.role || "ADMIN";
 
   const login = async (email: string, password: string, role_override?: UserRole): Promise<boolean> => {
     try {
@@ -42,13 +44,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       }
     } catch (e) {
-      // Fallback local login
       const fallbackUser: User = {
         ...defaultUser,
         role: role_override || "ADMIN",
         name: role_override === "SALES_MANAGER" ? "Priya Patil" : 
               role_override === "SALES_EXECUTIVE" ? "Amit Sharma" : 
-              role_override === "SUPPORT_AGENT" ? "Sneha Kulkarni" : "Kabir Mehta"
+              role_override === "SUPPORT_AGENT" ? "Sneha Kulkarni" : 
+              role_override === "VIEWER" ? "Rhea Kapoor" : "Kabir Mehta"
       };
       setUser(fallbackUser);
       localStorage.setItem('nexora_user', JSON.stringify(fallbackUser));
@@ -67,23 +69,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.switchRole(user.id, newRole);
     } catch (e) {
-      // Local fallback
+      // local fallback
     }
-    const updated = { ...user, role: newRole };
+    const updated: User = { ...user, role: newRole };
     setUser(updated);
     localStorage.setItem('nexora_user', JSON.stringify(updated));
   };
 
   const hasPermission = (permission: string): boolean => {
-    if (role === "ADMIN") return true;
+    if (role === "SUPER_ADMIN" || role === "ADMIN") return true;
     if (role === "SALES_MANAGER") {
-      return ["manage_leads", "manage_deals", "manage_tasks", "view_reports", "view_analytics", "manage_contacts", "manage_companies", "use_ai_assistant"].includes(permission);
+      return ["manage_leads", "manage_deals", "manage_tasks", "view_reports", "view_analytics", "manage_contacts", "manage_companies", "use_ai_assistant", "log_activities"].includes(permission);
     }
     if (role === "SALES_EXECUTIVE") {
-      return ["view_assigned_leads", "manage_assigned_deals", "manage_own_tasks", "log_activities", "use_ai_assistant", "view_contacts"].includes(permission);
+      return ["view_assigned_leads", "manage_assigned_deals", "manage_own_tasks", "log_activities", "use_ai_assistant", "view_contacts", "view_companies", "create_lead", "create_deal"].includes(permission);
     }
     if (role === "SUPPORT_AGENT") {
-      return ["view_companies", "view_contacts", "log_support_activities", "use_ai_assistant", "manage_own_tasks"].includes(permission);
+      return ["view_companies", "view_contacts", "log_support_activities", "use_ai_assistant", "manage_own_tasks", "log_activities"].includes(permission);
+    }
+    if (role === "VIEWER") {
+      return ["view_only", "view_companies", "view_contacts", "view_deals", "view_leads", "view_reports", "view_analytics"].includes(permission);
     }
     return false;
   };

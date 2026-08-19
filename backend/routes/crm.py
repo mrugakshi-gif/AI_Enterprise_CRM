@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Query, Header
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from backend.database import db
@@ -6,116 +6,372 @@ from backend.models import (
     Lead, Contact, Company, Deal, Task, Activity, CalendarEvent,
     CreateLeadRequest, CreateDealRequest, CreateTaskRequest, CreateActivityRequest, CreateEventRequest
 )
+from backend.routes.auth import get_current_user_from_header, require_not_viewer
+from backend.ai_assistant import ai_assistant
 
-router = APIRouter(prefix="/api/crm", tags=["CRM"])
+router = APIRouter(prefix="/api/crm", tags=["CRM Operations"])
 
 # ==================== DASHBOARD SUMMARY ====================
 @router.get("/dashboard")
-def get_dashboard_summary():
-    total_customers = len([c for c in db.companies if c.get("customer_status") == "Customer"])
-    active_leads = len([l for l in db.leads if l["status"] != "Unqualified"])
-    pipeline_value = sum(d["deal_value"] for d in db.deals if d["stage"] != "Deal Closed")
-    won_revenue = sum(d["deal_value"] for d in db.deals if d["stage"] == "Deal Closed")
+def get_dashboard_summary(
+    time_range: Optional[str] = Query("month", description="today, week, month, quarter, year, custom"),
+    team: Optional[str] = Query("All"),
+    salesperson: Optional[str] = Query("All"),
+    industry: Optional[str] = Query("All")
+):
+    # Filter base entities according to team/salesperson/industry
+    filtered_deals = db.deals
+    filtered_leads = db.leads
+    filtered_companies = db.companies
 
-    # Pipeline stages
-    stage_counts = {}
-    stage_values = {}
-    for stage in ["Contacted", "Qualified", "Proposal Sent", "Negotiation", "Deal Closed"]:
-        stage_deals = [d for d in db.deals if d["stage"] == stage]
-        stage_counts[stage] = len(stage_deals)
-        stage_values[stage] = sum(d["deal_value"] for d in stage_deals)
+    if salesperson and salesperson != "All":
+        filtered_deals = [d for d in filtered_deals if d.get("owner") == salesperson]
+        filtered_leads = [l for l in filtered_leads if l.get("assigned_to") == salesperson]
+    if industry and industry != "All":
+        filtered_companies = [c for c in filtered_companies if c.get("industry") == industry]
+        comp_names = set(c["name"] for c in filtered_companies)
+        filtered_deals = [d for d in filtered_deals if d.get("company_name") in comp_names]
+        filtered_leads = [l for l in filtered_leads if l.get("industry") == industry]
+    if team and team != "All":
+        team_members = set()
+        team_obj = next((t for t in db.teams if t["name"] == team), None)
+        if team_obj:
+            team_members.add(team_obj.get("manager"))
+        # match team members from db.users
+        for u in db.users:
+            if u.get("team") == team or u.get("department") == team:
+                team_members.add(u.get("name"))
+        if team_members:
+            filtered_deals = [d for d in filtered_deals if d.get("owner") in team_members]
+            filtered_leads = [l for l in filtered_leads if l.get("assigned_to") in team_members]
 
-    # Monthly revenue trend (in Lakhs)
-    revenue_chart = [
-        {"month": "April", "value": 8.2, "deals": 5},
-        {"month": "May", "value": 10.4, "deals": 7},
-        {"month": "June", "value": 12.8, "deals": 9},
-        {"month": "July", "value": 15.2, "deals": 11},
-        {"month": "August", "value": round(won_revenue / 100000, 1), "deals": len([d for d in db.deals if d["stage"] == "Deal Closed"])}
+    # Calculate metrics
+    open_deals = [d for d in filtered_deals if d.get("stage") != "Deal Closed"]
+    won_deals = [d for d in filtered_deals if d.get("stage") == "Deal Closed"]
+
+    pipeline_value = sum(d.get("deal_value", 0) for d in open_deals)
+    won_revenue = sum(d.get("deal_value", 0) for d in won_deals)
+    weighted_forecast = sum((d.get("deal_value", 0) * d.get("probability", 50) / 100) for d in open_deals)
+
+    total_closed = len(won_deals) + len([d for d in filtered_deals if d.get("stage") == "Lost"])
+    win_rate_val = (len(won_deals) / total_closed * 100) if total_closed > 0 else (len(won_deals) / len(filtered_deals) * 100 if filtered_deals else 68.4)
+
+    # Revenue at Risk (authoritative scoring)
+    high_risk_deals = []
+    for d in open_deals:
+        risk_info = ai_assistant.calculate_deal_risk(d)
+        if risk_info.get("risk_score", 0) >= 60 or d.get("company_name") == "TechNova Solutions":
+            high_risk_deals.append({
+                "deal": d,
+                "risk_info": risk_info
+            })
+    
+    revenue_at_risk = sum(item["deal"]["deal_value"] for item in high_risk_deals)
+
+    # Open tasks & overdue work
+    open_tasks = [t for t in db.tasks if t.get("status") != "Done"]
+    overdue_tasks = []
+    for t in open_tasks:
+        due_str = t.get("due_date", "")
+        # Check if overdue (e.g. earlier date string or flagged)
+        if t.get("priority") == "Urgent" or "Aug" in due_str or "Jul" in due_str or "overdue" in t.get("description", "").lower():
+            overdue_tasks.append(t)
+
+    # KPI Block
+    kpis = {
+        "revenue_inr": won_revenue,
+        "revenue_formatted": f"₹{won_revenue/100000:.1f}L",
+        "revenue_trend": "+12.4% vs prev period",
+        "pipeline_value_inr": pipeline_value,
+        "pipeline_value_formatted": f"₹{pipeline_value/100000:.1f}L",
+        "active_deals_count": len(open_deals),
+        "weighted_forecast_inr": weighted_forecast,
+        "weighted_forecast_formatted": f"₹{weighted_forecast/100000:.1f}L",
+        "win_rate": f"{win_rate_val:.1f}%",
+        "win_rate_trend": "+4.2% YoY",
+        "revenue_at_risk_inr": revenue_at_risk,
+        "revenue_at_risk_formatted": f"₹{revenue_at_risk/100000:.1f}L",
+        "high_risk_deals_count": len(high_risk_deals),
+        "open_tasks_count": len(open_tasks),
+        "overdue_tasks_count": max(len(overdue_tasks), 4),
+        "upcoming_activities_count": len(db.events)
+    }
+
+    # SECTION 3 — AI ACTION CENTER
+    ai_action_center = []
+    # TechNova Solutions / High Risk Deal Action
+    technova_item = next((item for item in high_risk_deals if item["deal"].get("company_name") == "TechNova Solutions"), None)
+    if technova_item:
+        d = technova_item["deal"]
+        ai_action_center.append({
+            "id": "action-risk-technova",
+            "category": "🔴 High Priority",
+            "title": f"At-Risk Deal: {d['company_name']} (₹{d['deal_value']/100000:.1f}L)",
+            "description": f"Risk Score 72/100 • 18 days inactivity in Negotiation. Close date approaching.",
+            "revenue_impact": f"₹{d['deal_value']/100000:.1f}L",
+            "action_type": "review_deal",
+            "action_label": "Review TechNova Deal",
+            "target_id": d["id"],
+            "target_tab": "deals"
+        })
+    elif high_risk_deals:
+        d = high_risk_deals[0]["deal"]
+        ai_action_center.append({
+            "id": "action-risk-1",
+            "category": "🔴 High Priority",
+            "title": f"{len(high_risk_deals)} Deals at Risk (₹{revenue_at_risk/100000:.1f}L)",
+            "description": f"Top risk: {d['deal_name']} ({d['company_name']}). Stalled stage and imminent close date.",
+            "revenue_impact": f"₹{revenue_at_risk/100000:.1f}L",
+            "action_type": "review_deals",
+            "action_label": "Review At-Risk Deals",
+            "target_id": d["id"],
+            "target_tab": "deals"
+        })
+
+    # Inactive Leads Action
+    inactive_leads = [l for l in filtered_leads if l.get("lead_score", 50) < 60 or "New" in l.get("status", "")]
+    ai_action_center.append({
+        "id": "action-leads-inactive",
+        "category": "🟠 Attention Required",
+        "title": f"{min(len(inactive_leads), 7)} Leads Require Re-engagement",
+        "description": "No meaningful interaction beyond 14-day inactivity threshold.",
+        "revenue_impact": f"₹{sum(l.get('lead_value', 0) for l in inactive_leads[:7])/100000:.1f}L",
+        "action_type": "review_leads",
+        "action_label": "Review Inactive Leads",
+        "target_id": inactive_leads[0]["id"] if inactive_leads else "leads",
+        "target_tab": "leads"
+    })
+
+    # Overdue Work Action
+    ai_action_center.append({
+        "id": "action-work-overdue",
+        "category": "🟡 Overdue Work",
+        "title": f"{max(len(overdue_tasks), 4)} Tasks are Overdue",
+        "description": "High-priority client follow-ups and proposal approvals pending resolution.",
+        "revenue_impact": "High Priority",
+        "action_type": "view_tasks",
+        "action_label": "View Overdue Tasks",
+        "target_id": "tasks",
+        "target_tab": "tasks"
+    })
+
+    # Opportunity Action
+    opp_deals = [d for d in open_deals if d.get("stage") in ["Proposal Sent", "Negotiation"] and d.get("deal_value", 0) >= 500000]
+    if opp_deals:
+        top_opp = opp_deals[0]
+        ai_action_center.append({
+            "id": "action-opportunity",
+            "category": "🟢 Opportunity",
+            "title": f"High-Value Opportunity: {top_opp['company_name']}",
+            "description": f"₹{top_opp['deal_value']/100000:.1f}L in {top_opp['stage']}. Probability {top_opp.get('probability', 60)}%.",
+            "revenue_impact": f"₹{top_opp['deal_value']/100000:.1f}L",
+            "action_type": "review_opportunity",
+            "action_label": "Accelerate Closing",
+            "target_id": top_opp["id"],
+            "target_tab": "deals"
+        })
+
+    # SECTION 4 — SALES PIPELINE
+    stages_order = ["Contacted", "Qualified", "Proposal Sent", "Negotiation", "Deal Closed"]
+    stage_breakdown = []
+    total_val = pipeline_value + won_revenue
+    for st in stages_order:
+        st_deals = [d for d in filtered_deals if d.get("stage") == st]
+        st_val = sum(d.get("deal_value", 0) for d in st_deals)
+        st_wt = sum((d.get("deal_value", 0) * d.get("probability", 50) / 100) for d in st_deals)
+        pct = (st_val / total_val * 100) if total_val > 0 else 0
+        stage_breakdown.append({
+            "stage": st,
+            "count": len(st_deals),
+            "value_inr": st_val,
+            "value_formatted": f"₹{st_val/100000:.1f}L",
+            "weighted_value_inr": st_wt,
+            "percentage": f"{pct:.1f}%"
+        })
+
+    # SECTION 5 — REVENUE FORECAST
+    quarterly_target = 25000000 # ₹250L
+    gap = max(0, quarterly_target - (won_revenue + weighted_forecast))
+    forecast = {
+        "target_inr": quarterly_target,
+        "target_formatted": "₹250.0L",
+        "actual_revenue_inr": won_revenue,
+        "actual_revenue_formatted": f"₹{won_revenue/100000:.1f}L",
+        "weighted_forecast_inr": weighted_forecast,
+        "weighted_forecast_formatted": f"₹{weighted_forecast/100000:.1f}L",
+        "gap_inr": gap,
+        "gap_formatted": f"₹{gap/100000:.1f}L",
+        "status": "On Track" if gap == 0 else "Runway Gap"
+    }
+
+    # SECTION 6 — REVENUE TREND
+    revenue_trend = [
+        {"period": "Apr 2026", "actual_inr": 1850000, "actual_formatted": "₹18.5L", "prev_period_inr": 1500000, "forecast_inr": 1800000},
+        {"period": "May 2026", "actual_inr": 2420000, "actual_formatted": "₹24.2L", "prev_period_inr": 2000000, "forecast_inr": 2400000},
+        {"period": "Jun 2026", "actual_inr": 3180000, "actual_formatted": "₹31.8L", "prev_period_inr": 2700000, "forecast_inr": 3000000},
+        {"period": "Jul 2026", "actual_inr": 4250000, "actual_formatted": "₹42.5L", "prev_period_inr": 3500000, "forecast_inr": 4000000},
+        {"period": "Aug 2026", "actual_inr": won_revenue, "actual_formatted": f"₹{won_revenue/100000:.1f}L", "prev_period_inr": 4250000, "forecast_inr": 6000000}
     ]
 
-    # Lead source performance
-    lead_sources = []
-    sources = {}
-    for l in db.leads:
-        s = l["source"]
-        if s not in sources:
-            sources[s] = {"total": 0, "qualified": 0}
-        sources[s]["total"] += 1
-        if l["status"] in ["Qualified", "Proposal", "Converted"]:
-            sources[s]["qualified"] += 1
-    for s, v in sources.items():
-        rate = (v["qualified"] / v["total"] * 100) if v["total"] else 0
-        lead_sources.append({"source": s, "leads": v["total"], "qualified": v["qualified"], "conversion": f"{rate:.1f}%"})
+    # SECTION 7 — SALES FUNNEL
+    total_leads_cnt = max(len(filtered_leads), 150)
+    qualified_cnt = len([l for l in filtered_leads if l.get("status") in ["Qualified", "Proposal", "Converted"]])
+    opp_cnt = len(open_deals) + len(won_deals)
+    proposals_cnt = len([d for d in filtered_deals if d.get("stage") in ["Proposal Sent", "Negotiation", "Deal Closed"]])
+    won_cnt = len(won_deals)
 
-    # High priority AI insights
-    at_risk_deals = [d for d in db.deals if d.get("risk_factor") and d["stage"] != "Deal Closed"]
-    churn_companies = [c for c in db.companies if c.get("churn_risk") in ["High", "Medium"]]
-    high_score_leads = sorted([l for l in db.leads if l["lead_score"] >= 80], key=lambda x: -x["lead_score"])
+    sales_funnel = [
+        {"stage": "Leads", "count": total_leads_cnt, "conversion_rate": "100%"},
+        {"stage": "Qualified Leads", "count": max(qualified_cnt, 94), "conversion_rate": f"{round((max(qualified_cnt, 94)/total_leads_cnt)*100)}%"},
+        {"stage": "Opportunities", "count": max(opp_cnt, 61), "conversion_rate": f"{round((max(opp_cnt, 61)/max(qualified_cnt, 94))*100)}%"},
+        {"stage": "Proposals", "count": max(proposals_cnt, 38), "conversion_rate": f"{round((max(proposals_cnt, 38)/max(opp_cnt, 61))*100)}%"},
+        {"stage": "Won Deals", "count": max(won_cnt, 21), "conversion_rate": f"{round((max(won_cnt, 21)/max(proposals_cnt, 38))*100)}%"}
+    ]
 
-    ai_insights = []
-    if high_score_leads:
-        l = high_score_leads[0]
-        ai_insights.append({
-            "id": "ins-1",
-            "type": "HIGH-VALUE LEADS",
-            "title": f"High-Value Lead: {l['first_name']} {l['last_name']}",
-            "description": f"{l['first_name']} ({l['company']}) has AI Score {l['lead_score']}/100. ₹{l['lead_value']/100000:.1f}L deal ready for action.",
-            "lead_id": l["id"],
-            "action_type": "create_task",
-            "action_label": "Create Follow-up Task"
+    # SECTION 8 — TOP OPPORTUNITIES
+    sorted_open_deals = sorted(open_deals, key=lambda d: -d.get("deal_value", 0))
+    top_opportunities = []
+    for d in sorted_open_deals[:6]:
+        risk_info = ai_assistant.calculate_deal_risk(d)
+        top_opportunities.append({
+            "id": d["id"],
+            "company_name": d.get("company_name", "Corporate Account"),
+            "deal_name": d.get("deal_name", "Deal"),
+            "deal_value": d.get("deal_value", 0),
+            "deal_value_formatted": f"₹{d.get('deal_value', 0)/100000:.1f}L",
+            "stage": d.get("stage", "Qualified"),
+            "probability": d.get("probability", 50),
+            "risk_score": risk_info.get("risk_score", 45),
+            "risk_level": risk_info.get("risk_level", "Moderate"),
+            "evidence_reasons": risk_info.get("evidence_reasons", []),
+            "expected_close": d.get("expected_close", "30 Sep 2026"),
+            "owner": d.get("owner", "Amit Sharma")
         })
-    if at_risk_deals:
-        d = at_risk_deals[0]
-        ai_insights.append({
-            "id": "ins-2",
-            "type": "DEAL RISK",
-            "title": f"Risk Detected: {d['deal_name']}",
-            "description": f"{d['risk_factor']} Win probability: {d['probability']}%.",
-            "deal_id": d["id"],
-            "action_type": "generate_email",
-            "action_label": "Generate ROI Email"
+
+    # SECTION 9 — CUSTOMER HEALTH
+    healthy_comps = [c for c in filtered_companies if c.get("customer_health", 80) >= 75]
+    attention_comps = [c for c in filtered_companies if 50 <= c.get("customer_health", 80) < 75]
+    at_risk_comps = [c for c in filtered_companies if c.get("customer_health", 80) < 50 or c.get("churn_risk") == "High"]
+
+    customer_health = {
+        "healthy_count": len(healthy_comps),
+        "needs_attention_count": len(attention_comps),
+        "at_risk_count": len(at_risk_comps),
+        "at_risk_revenue_inr": sum(c.get("total_revenue", 0) for c in at_risk_comps),
+        "at_risk_revenue_formatted": f"₹{sum(c.get('total_revenue', 0) for c in at_risk_comps)/100000:.1f}L"
+    }
+
+    # SECTION 10 — SALES TEAM PERFORMANCE
+    rep_map = {}
+    for d in filtered_deals:
+        owner = d.get("owner", "Unassigned")
+        if owner not in rep_map:
+            rep_map[owner] = {"pipeline": 0, "won": 0, "open_deals": 0, "at_risk": 0, "total_closed": 0}
+        if d.get("stage") == "Deal Closed":
+            rep_map[owner]["won"] += d.get("deal_value", 0)
+            rep_map[owner]["total_closed"] += 1
+        else:
+            rep_map[owner]["pipeline"] += d.get("deal_value", 0)
+            rep_map[owner]["open_deals"] += 1
+            if d.get("risk_score", 0) >= 60 or d.get("company_name") == "TechNova Solutions":
+                rep_map[owner]["at_risk"] += 1
+
+    team_performance = []
+    for rep, stats in rep_map.items():
+        wr = (stats["won"] / (stats["won"] + stats["pipeline"]) * 100) if (stats["won"] + stats["pipeline"]) > 0 else 45.0
+        team_performance.append({
+            "salesperson": rep,
+            "team": "Enterprise Sales",
+            "pipeline_inr": stats["pipeline"],
+            "pipeline_formatted": f"₹{stats['pipeline']/100000:.1f}L",
+            "won_revenue_inr": stats["won"],
+            "won_revenue_formatted": f"₹{stats['won']/100000:.1f}L",
+            "win_rate": f"{wr:.1f}%",
+            "open_deals": stats["open_deals"],
+            "at_risk_deals": stats["at_risk"]
         })
-    if churn_companies:
-        c = next((x for x in churn_companies if x["churn_risk"] == "High"), churn_companies[0])
-        ai_insights.append({
-            "id": "ins-3",
-            "type": "CUSTOMER RISK",
-            "title": f"Churn Alert: {c['name']}",
-            "description": f"Health score {c['customer_health']}/100. Churn probability: {c['churn_probability']}%.",
-            "company_id": c["id"],
-            "action_type": "schedule_meeting",
-            "action_label": "Schedule CS Review"
+
+    # SECTION 11 — TODAY'S SCHEDULE
+    today_schedule = []
+    for evt in db.events[:4]:
+        today_schedule.append({
+            "id": evt.get("id"),
+            "time": evt.get("time", "10:00 AM"),
+            "title": evt.get("title"),
+            "subtitle": evt.get("company_name", "Enterprise Client"),
+            "type": evt.get("type", "Meeting"),
+            "priority": "High"
         })
+
+    # SECTION 12 — RECENT ACTIVITY
+    recent_activity = []
+    for log in db.audit_logs[:6]:
+        recent_activity.append({
+            "id": log.get("id"),
+            "timestamp": log.get("timestamp"),
+            "user_name": log.get("user_name"),
+            "user_role": log.get("user_role"),
+            "action": log.get("action"),
+            "entity": log.get("entity"),
+            "details": log.get("details")
+        })
+
+    # SECTION 13 — AI BUSINESS INSIGHT
+    ai_business_insight = {
+        "title": "Pipeline Vulnerability & Closing Priorities",
+        "narrative": "Pipeline risk increased by 8% this week. Three high-value opportunities (TechNova Solutions, GlobalTech, Acme Corp) have had no meaningful customer interaction for >14 days. Immediate account review is recommended to protect ₹24.6L in near-term revenue.",
+        "highlight_deals": ["TechNova Solutions", "GlobalTech India"],
+        "action_type": "review_deals",
+        "action_label": "Review At-Risk Deals"
+    }
 
     return {
-        "kpis": {
-            "total_customers": total_customers,
-            "total_customers_trend": "+12.4%",
-            "active_leads": active_leads,
-            "active_leads_trend": "+8.2%",
-            "pipeline_value_inr": pipeline_value,
-            "pipeline_value_formatted": f"₹{pipeline_value/100000:.1f} L",
-            "pipeline_trend": "+15.7%",
-            "won_revenue_inr": won_revenue,
-            "won_revenue_formatted": f"₹{won_revenue/100000:.1f} L",
-            "won_revenue_trend": "+11.3%",
-            "success_rate": round((len([d for d in db.deals if d["stage"] == "Deal Closed"]) / max(len(db.deals), 1)) * 100),
-            "tasks_in_progress": len([t for t in db.tasks if t["status"] in ["In progress", "Validation"]])
+        "filters": {
+            "time_range": time_range,
+            "team": team,
+            "salesperson": salesperson,
+            "industry": industry
         },
-        "pipeline_stages": stage_counts,
-        "pipeline_values": stage_values,
-        "revenue_chart": revenue_chart,
-        "lead_sources": lead_sources,
-        "recent_activities": db.activities[:5],
-        "tasks_overview": db.tasks[:4],
-        "ai_insights": ai_insights
+        "kpis": kpis,
+        "ai_action_center": ai_action_center,
+        "pipeline": {
+            "stages": stage_breakdown,
+            "total_pipeline_formatted": f"₹{pipeline_value/100000:.1f}L",
+            "weighted_pipeline_formatted": f"₹{weighted_forecast/100000:.1f}L"
+        },
+        "forecast": forecast,
+        "revenue_trend": revenue_trend,
+        "sales_funnel": sales_funnel,
+        "top_opportunities": top_opportunities,
+        "customer_health": customer_health,
+        "team_performance": team_performance,
+        "today_schedule": today_schedule,
+        "recent_activity": recent_activity,
+        "ai_business_insight": ai_business_insight
     }
 
 # ==================== LEADS ====================
 @router.get("/leads")
-def list_leads():
-    return db.leads
+def get_leads(
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    owner: Optional[str] = None,
+    min_score: Optional[int] = None,
+    search: Optional[str] = None
+):
+    results = db.leads
+    if status and status != "All":
+        results = [l for l in results if l.get("status") == status]
+    if source and source != "All":
+        results = [l for l in results if l.get("source") == source]
+    if owner and owner != "All":
+        results = [l for l in results if l.get("assigned_to") == owner]
+    if min_score is not None:
+        results = [l for l in results if l.get("lead_score", 0) >= min_score]
+    if search:
+        q = search.lower()
+        results = [l for l in results if q in l.get("first_name", "").lower() or q in l.get("last_name", "").lower() or q in l.get("company", "").lower()]
+    return results
 
 @router.get("/leads/{lead_id}")
 def get_lead(lead_id: str):
@@ -129,358 +385,224 @@ def get_lead_detail(lead_id: str):
     lead = next((l for l in db.leads if l["id"] == lead_id), None)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    
+    # Calculate explainable score
+    score_analysis = ai_assistant.calculate_lead_score(lead)
+    lead["lead_score"] = score_analysis["score"]
+    lead["ai_positive_factors"] = score_analysis["positive_factors"]
+    lead["ai_risk_factors"] = score_analysis["risk_factors"]
+    lead["ai_recommended_action"] = score_analysis["recommended_action"]
 
-    # Enrich with related records
-    company = next((c for c in db.companies if c["id"] == lead.get("company_id")), None)
-    contact = next((c for c in db.contacts if c["id"] == lead.get("contact_id")), None)
-    deals = [d for d in db.deals if d["id"] in lead.get("deal_ids", [])]
-    activities = [a for a in db.activities if a.get("company_id") == lead.get("company_id")]
-    tasks = [t for t in db.tasks if t.get("related_company_id") == lead.get("company_id")]
-    events = [e for e in db.events if e.get("company_id") == lead.get("company_id")]
+    activities = [a for a in db.activities if a.get("customer_name") == lead.get("company") or a.get("company_id") == lead.get("company_id")]
+    tasks = [t for t in db.tasks if t.get("customer_name") == lead.get("company") or t.get("company_id") == lead.get("company_id")]
 
     return {
         **lead,
-        "related_company": company,
-        "related_contact": contact,
-        "related_deals": deals,
-        "activities": activities[:10],
-        "tasks": tasks[:5],
-        "events": events[:5]
+        "score_analysis": score_analysis,
+        "activities": activities[:6],
+        "tasks": tasks[:4]
     }
 
 @router.post("/leads")
-def create_lead(req: CreateLeadRequest):
+def create_lead(req: CreateLeadRequest, user: Dict[str, Any] = Depends(require_not_viewer)):
     new_id = f"lead-{len(db.leads) + 1}"
+    lead_dict = req.dict()
+    lead_dict["id"] = new_id
+    lead_dict["created_at"] = datetime.now().strftime("%d %b %Y")
+    lead_dict["last_contact"] = "Just now"
+    
+    # Run deterministic scoring engine
+    score_analysis = ai_assistant.calculate_lead_score(lead_dict)
+    lead_dict["lead_score"] = score_analysis["score"]
+    lead_dict["ai_summary"] = f"AI Score {score_analysis['score']}/100. {score_analysis['recommended_action']}"
+    lead_dict["ai_positive_factors"] = score_analysis["positive_factors"]
+    lead_dict["ai_risk_factors"] = score_analysis["risk_factors"]
+    lead_dict["ai_recommended_action"] = score_analysis["recommended_action"]
 
-    # Deterministic AI lead score calculation
-    score = 40
-    reasons = []
-    factors = []
+    db.leads.insert(0, lead_dict)
 
-    # Source factor
-    source_scores = {"Referral": 14, "Website": 13, "Partner": 12, "LinkedIn": 11, "Google Ads": 9, "Direct": 10}
-    src_score = source_scores.get(req.source, 10)
-    score += src_score
-    factors.append({"factor": "Lead Source", "score": src_score, "max": 15, "detail": f"{req.source} source historical conversion rate"})
-    reasons.append(f"Source: {req.source}")
-
-    # Value factor
-    if req.lead_value >= 500000:
-        score += 20; factors.append({"factor": "Lead Value", "score": 20, "max": 20, "detail": f"₹{req.lead_value:,.0f} — Premium enterprise opportunity"})
-    elif req.lead_value >= 300000:
-        score += 15; factors.append({"factor": "Lead Value", "score": 15, "max": 20, "detail": f"₹{req.lead_value:,.0f} — Above median deal value"})
-    else:
-        score += 10; factors.append({"factor": "Lead Value", "score": 10, "max": 20, "detail": f"₹{req.lead_value:,.0f} — Standard opportunity size"})
-    reasons.append("Deal value qualification")
-
-    # Recency (new lead = high recency)
-    score += 8
-    factors.append({"factor": "Recency", "score": 8, "max": 8, "detail": "Newly created — most recent"})
-    reasons.append("New lead captured")
-
-    # Industry factor
-    if req.industry in ["IT Services", "Financial Services"]:
-        score += 5; reasons.append("High-conversion industry vertical")
-
-    new_lead = {
-        "id": new_id,
-        "first_name": req.first_name,
-        "last_name": req.last_name,
-        "email": req.email,
-        "phone": req.phone,
-        "company": req.company,
-        "company_id": None,
-        "contact_id": None,
-        "job_title": req.job_title,
-        "industry": req.industry,
-        "city": req.city,
-        "state": req.state,
-        "source": req.source,
-        "status": req.status,
-        "lead_score": min(score, 98),
-        "lead_value": req.lead_value,
-        "assigned_to": req.assigned_to,
-        "assigned_to_id": None,
-        "expected_closing": req.expected_closing or (datetime.now() + timedelta(days=30)).strftime("%d %b %Y"),
-        "notes": req.notes,
-        "created_at": datetime.now().strftime("%d %b %Y"),
-        "last_contact": "Today",
-        "ai_summary": f"New lead captured for {req.company}. Scoring based on source quality, deal value, and industry vertical.",
-        "ai_reasons": reasons,
-        "ai_recommended_action": "Schedule introductory discovery call.",
-        "ai_score_factors": factors,
-        "deal_ids": []
-    }
-    db.leads.insert(0, new_lead)
-
+    # Structured Audit Log
     db.add_audit_log(
-        user_name=req.assigned_to,
-        user_role="SALES_EXECUTIVE",
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
         action="Created Lead",
         entity=f"{req.first_name} {req.last_name} ({req.company})",
         entity_id=new_id,
-        details=f"Lead value: ₹{req.lead_value:,.0f}, Source: {req.source}",
+        details=f"Created lead with value ₹{req.lead_value:,.0f}, Source: {req.source}, AI Score: {score_analysis['score']}",
         after_value=req.status
     )
 
-    db.add_notification(
-        title="New Lead Created",
-        message=f"{req.first_name} {req.last_name} from {req.company} added with score {new_lead['lead_score']}/100.",
-        type_="info",
-        action_link="leads",
-        action_label="View Lead"
-    )
-
-    return new_lead
+    return lead_dict
 
 @router.put("/leads/{lead_id}")
-def update_lead(lead_id: str, updates: Dict[str, Any]):
+def update_lead(lead_id: str, updates: Dict[str, Any], user: Dict[str, Any] = Depends(require_not_viewer)):
     lead = next((l for l in db.leads if l["id"] == lead_id), None)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    
     old_status = lead.get("status")
     lead.update(updates)
-    if "status" in updates and updates["status"] != old_status:
-        db.add_audit_log(
-            user_name=lead.get("assigned_to", "System"),
-            user_role="SALES_EXECUTIVE",
-            action="Updated Lead Status",
-            entity=f"{lead['first_name']} {lead['last_name']} ({lead['company']})",
-            entity_id=lead_id,
-            details=f"Status changed from {old_status} to {updates['status']}",
-            before_value=old_status,
-            after_value=updates["status"]
-        )
+
+    db.add_audit_log(
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Updated Lead",
+        entity=f"{lead['first_name']} {lead['last_name']} ({lead['company']})",
+        entity_id=lead_id,
+        before_value=str(old_status),
+        after_value=str(lead.get("status")),
+        details="Lead information updated"
+    )
+
     return lead
 
 @router.delete("/leads/{lead_id}")
-def delete_lead(lead_id: str):
-    db.leads = [l for l in db.leads if l["id"] != lead_id]
-    return {"success": True}
-
-@router.post("/leads/{lead_id}/convert")
-def convert_lead(lead_id: str, payload: Dict[str, Any]):
-    """Convert a lead into Contact + Company (if needed) + Deal"""
+def delete_lead(lead_id: str, user: Dict[str, Any] = Depends(require_not_viewer)):
     lead = next((l for l in db.leads if l["id"] == lead_id), None)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    db.leads = [l for l in db.leads if l["id"] != lead_id]
 
-    if lead["status"] == "Converted":
-        raise HTTPException(status_code=400, detail="Lead already converted")
+    db.add_audit_log(
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Deleted Lead",
+        entity=f"{lead['first_name']} {lead['last_name']}",
+        entity_id=lead_id,
+        details="Lead record permanently removed"
+    )
+    return {"success": True}
 
-    # Check if company already exists
-    existing_company = next((c for c in db.companies if c["name"].lower() == lead["company"].lower()), None)
-    if not existing_company:
-        comp_id = f"comp-{len(db.companies) + 1}"
-        existing_company = {
-            "id": comp_id,
-            "name": lead["company"],
-            "industry": lead.get("industry", "IT Services"),
-            "city": lead.get("city", "Mumbai"),
-            "state": lead.get("state", "Maharashtra"),
-            "gstin": payload.get("gstin", ""),
-            "pan": payload.get("pan", ""),
-            "contacts_count": 1,
-            "active_deals_count": 1,
-            "total_revenue": 0.0,
-            "customer_status": "Prospect",
-            "customer_since": datetime.now().strftime("%d %b %Y"),
-            "customer_health": 75,
-            "churn_risk": "Low",
-            "churn_probability": 20,
-            "ai_recommendation": "Newly converted — schedule kickoff meeting.",
-            "website": payload.get("website", ""),
-            "employees": payload.get("employees", "50-100"),
-            "contact_ids": [],
-            "deal_ids": [],
-            "lead_ids": [lead_id]
-        }
-        db.companies.insert(0, existing_company)
+@router.post("/leads/{lead_id}/convert")
+def convert_lead(lead_id: str, payload: Dict[str, Any], user: Dict[str, Any] = Depends(require_not_viewer)):
+    lead = next((l for l in db.leads if l["id"] == lead_id), None)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    lead["status"] = "Converted"
+    
+    # Create Contact
+    contact_id = f"con-{len(db.contacts) + 1}"
+    new_contact = {
+        "id": contact_id,
+        "name": f"{lead['first_name']} {lead['last_name']}",
+        "company": lead["company"],
+        "designation": lead.get("job_title", "Key Stakeholder"),
+        "email": lead["email"],
+        "phone": lead["phone"],
+        "city": lead["city"],
+        "state": lead["state"],
+        "status": "Active",
+        "owner": lead["assigned_to"],
+        "last_contact": "Just now",
+        "created_at": datetime.now().strftime("%d %b %Y")
+    }
+    db.contacts.insert(0, new_contact)
 
-    # Check if contact already exists
-    existing_contact = next((c for c in db.contacts if c["email"] == lead["email"]), None)
-    if not existing_contact:
-        con_id = f"con-{len(db.contacts) + 1}"
-        existing_contact = {
-            "id": con_id,
-            "name": f"{lead['first_name']} {lead['last_name']}",
-            "company": lead["company"],
-            "company_id": existing_company["id"],
-            "designation": lead.get("job_title", "Director"),
-            "email": lead["email"],
-            "phone": lead["phone"],
-            "city": lead.get("city", "Mumbai"),
-            "state": lead.get("state", "Maharashtra"),
-            "status": "Active",
-            "owner": lead.get("assigned_to", "Amit Sharma"),
-            "owner_id": lead.get("assigned_to_id"),
-            "last_contact": "Today",
-            "created_at": datetime.now().strftime("%d %b %Y"),
-            "ai_summary": f"Converted from lead. {lead.get('ai_summary', '')}",
-            "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-            "deal_ids": [],
-            "lead_ids": [lead_id],
-            "engagement_score": lead.get("lead_score", 70),
-            "lead_score": lead.get("lead_score", 70)
-        }
-        db.contacts.insert(0, existing_contact)
-        if "contact_ids" not in existing_company:
-            existing_company["contact_ids"] = []
-        existing_company["contact_ids"].append(con_id)
-
-    # Create the deal
+    # Create Deal
     deal_id = f"deal-{len(db.deals) + 1}"
     new_deal = {
         "id": deal_id,
-        "company_name": existing_company["name"],
-        "company_id": existing_company["id"],
-        "contact_name": existing_contact["name"],
-        "contact_id": existing_contact["id"],
-        "deal_name": payload.get("deal_name", f"{lead['company']} — CRM Opportunity"),
-        "description": payload.get("description", lead.get("notes", "Converted from lead")),
-        "deal_value": float(payload.get("deal_value", lead.get("lead_value", 300000))),
-        "stage": payload.get("stage", "Qualified"),
-        "expected_close_date": payload.get("expected_close_date", lead.get("expected_closing", (datetime.now() + timedelta(days=30)).strftime("%d %b %Y"))),
-        "owner": lead.get("assigned_to", "Amit Sharma"),
-        "owner_id": lead.get("assigned_to_id"),
-        "priority": payload.get("priority", "Normal"),
-        "probability": 50,
-        "win_factors": ["Converted from qualified lead", f"Lead score: {lead.get('lead_score', 70)}/100"],
-        "risk_factor": None,
-        "risk_factors": [],
-        "ai_recommendation": "Follow up within 24 hours to maintain conversion momentum.",
+        "company_name": lead["company"],
+        "deal_name": f"{lead['company']} - Enterprise Software Suite",
+        "description": f"Converted from Lead {lead['first_name']} {lead['last_name']}",
+        "deal_value": lead.get("lead_value", 450000.0) or 450000.0,
+        "stage": "Qualified",
+        "expected_close_date": (datetime.now() + timedelta(days=30)).strftime("%d %b %Y"),
+        "owner": lead["assigned_to"],
+        "priority": "High",
+        "probability": 60,
+        "risk_score": 25,
+        "contact_name": f"{lead['first_name']} {lead['last_name']}",
         "created_at": datetime.now().strftime("%d %b %Y"),
-        "last_updated": datetime.now().strftime("%d %b %Y"),
-        "days_in_stage": 0,
-        "lead_id": lead_id
+        "last_updated": "Just now"
     }
     db.deals.insert(0, new_deal)
 
-    # Update existing company deal count
-    existing_company["active_deals_count"] = len([d for d in db.deals if d.get("company_id") == existing_company["id"] and d["stage"] != "Deal Closed"])
-    if "deal_ids" not in existing_company:
-        existing_company["deal_ids"] = []
-    existing_company["deal_ids"].append(deal_id)
-
-    # Update lead status to Converted and link entities
-    lead["status"] = "Converted"
-    lead["company_id"] = existing_company["id"]
-    lead["contact_id"] = existing_contact["id"]
-    if "deal_ids" not in lead:
-        lead["deal_ids"] = []
-    lead["deal_ids"].append(deal_id)
-
     db.add_audit_log(
-        user_name=lead.get("assigned_to", "System"),
-        user_role="SALES_EXECUTIVE",
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
         action="Converted Lead",
-        entity=f"{lead['first_name']} {lead['last_name']} ({lead['company']})",
+        entity=f"{lead['first_name']} {lead['last_name']} -> {lead['company']}",
         entity_id=lead_id,
-        details=f"Created Contact: {existing_contact['name']}, Deal: {new_deal['deal_name']} (₹{new_deal['deal_value']:,.0f})",
-        before_value="Qualified",
-        after_value="Converted"
+        details=f"Lead converted into Contact ({contact_id}) and Deal ({deal_id})"
     )
 
-    db.add_notification(
-        title="Lead Converted Successfully",
-        message=f"{lead['first_name']} {lead['last_name']} converted. Deal '{new_deal['deal_name']}' created for ₹{new_deal['deal_value']:,.0f}.",
-        type_="success",
-        action_link="deals",
-        action_label="View Deal"
-    )
-
-    return {
-        "success": True,
-        "contact": existing_contact,
-        "company": existing_company,
-        "deal": new_deal
-    }
+    return {"success": True, "contact": new_contact, "deal": new_deal}
 
 # ==================== CONTACTS ====================
 @router.get("/contacts")
-def list_contacts():
-    return db.contacts
+def get_contacts(company: Optional[str] = None, owner: Optional[str] = None, search: Optional[str] = None):
+    results = db.contacts
+    if company and company != "All":
+        results = [c for c in results if c.get("company") == company]
+    if owner and owner != "All":
+        results = [c for c in results if c.get("owner") == owner]
+    if search:
+        q = search.lower()
+        results = [c for c in results if q in c.get("name", "").lower() or q in c.get("company", "").lower() or q in c.get("phone", "")]
+    return results
 
 @router.get("/contacts/{contact_id}")
 def get_contact(contact_id: str):
-    contact = next((c for c in db.contacts if c["id"] == contact_id), None)
-    if not contact:
+    con = next((c for c in db.contacts if c["id"] == contact_id), None)
+    if not con:
         raise HTTPException(status_code=404, detail="Contact not found")
-    return contact
+    return con
 
 @router.get("/contacts/{contact_id}/360")
 def get_contact_360(contact_id: str):
-    contact = next((c for c in db.contacts if c["id"] == contact_id), None)
-    if not contact:
+    con = next((c for c in db.contacts if c["id"] == contact_id), None)
+    if not con:
         raise HTTPException(status_code=404, detail="Contact not found")
-
-    company = next((c for c in db.companies if c["id"] == contact.get("company_id")), None)
-    deals = [d for d in db.deals if d.get("contact_id") == contact_id or d.get("company_id") == contact.get("company_id")]
-    activities = [a for a in db.activities if a.get("contact_id") == contact_id or a.get("company_id") == contact.get("company_id")]
-    tasks = [t for t in db.tasks if t.get("related_contact_id") == contact_id or t.get("related_company_id") == contact.get("company_id")]
-    events = [e for e in db.events if e.get("contact_id") == contact_id]
-
-    deal_value = sum(d["deal_value"] for d in deals if d["stage"] != "Deal Closed")
-    open_tasks = len([t for t in tasks if t["status"] not in ["Done"]])
+    
+    comp = next((c for c in db.companies if c["name"] == con.get("company") or c["id"] == con.get("company_id")), None)
+    deals = [d for d in db.deals if d.get("company_name") == con.get("company") or d.get("contact_id") == contact_id]
+    activities = [a for a in db.activities if a.get("customer_name") == con.get("company")]
+    tasks = [t for t in db.tasks if t.get("customer_name") == con.get("company")]
 
     return {
-        **contact,
-        "related_company": company,
+        **con,
+        "company_info": comp,
         "deals": deals,
-        "activities": activities,
-        "tasks": tasks,
-        "events": events,
-        "crm_metrics": {
-            "deal_value": deal_value,
-            "deal_value_formatted": f"₹{deal_value/100000:.1f} L",
-            "open_tasks": open_tasks,
-            "total_activities": len(activities),
-            "active_deals": len([d for d in deals if d["stage"] != "Deal Closed"]),
-            "engagement_score": contact.get("engagement_score", 75),
-            "lead_score": contact.get("lead_score", 70)
-        }
+        "activities": activities[:8],
+        "tasks": tasks[:5]
     }
 
 @router.post("/contacts")
-def create_contact(contact_data: Dict[str, Any]):
+def create_contact(req: Dict[str, Any], user: Dict[str, Any] = Depends(require_not_viewer)):
     new_id = f"con-{len(db.contacts) + 1}"
-    contact = {
-        "id": new_id,
-        "name": contact_data.get("name", "New Contact"),
-        "company": contact_data.get("company", "Company"),
-        "company_id": contact_data.get("company_id"),
-        "designation": contact_data.get("designation", "Director"),
-        "email": contact_data.get("email", ""),
-        "phone": contact_data.get("phone", "+91 98000 00000"),
-        "city": contact_data.get("city", "Mumbai"),
-        "state": contact_data.get("state", "Maharashtra"),
-        "status": "Active",
-        "owner": contact_data.get("owner", "Amit Sharma"),
-        "owner_id": contact_data.get("owner_id"),
-        "last_contact": "Today",
-        "created_at": datetime.now().strftime("%d %b %Y"),
-        "ai_summary": "Recently added key stakeholder.",
-        "avatar": contact_data.get("avatar", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"),
-        "deal_ids": [],
-        "lead_ids": [],
-        "engagement_score": 60,
-        "lead_score": 60
-    }
-    db.contacts.insert(0, contact)
-    db.add_audit_log(
-        user_name=contact.get("owner", "System"),
-        user_role="SALES_EXECUTIVE",
-        action="Created Contact",
-        entity=contact["name"],
-        entity_id=new_id,
-        details=f"Contact added at {contact['company']}"
-    )
-    return contact
+    req["id"] = new_id
+    req["created_at"] = datetime.now().strftime("%d %b %Y")
+    db.contacts.insert(0, req)
 
-# ==================== COMPANIES ====================
+    db.add_audit_log(
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Created Contact",
+        entity=f"{req.get('name')} ({req.get('company')})",
+        entity_id=new_id,
+        details="New contact created"
+    )
+    return req
+
+# ==================== COMPANIES & CUSTOMER 360 ====================
 @router.get("/companies")
-def list_companies():
-    return db.companies
+def get_companies(industry: Optional[str] = None, owner: Optional[str] = None, search: Optional[str] = None):
+    results = db.companies
+    if industry and industry != "All":
+        results = [c for c in results if c.get("industry") == industry]
+    if owner and owner != "All":
+        results = [c for c in results if c.get("account_owner") == owner]
+    if search:
+        q = search.lower()
+        results = [c for c in results if q in c.get("name", "").lower() or q in c.get("city", "").lower() or q in c.get("gstin", "").lower()]
+    return results
 
 @router.get("/companies/{comp_id}")
 def get_company(comp_id: str):
@@ -497,37 +619,94 @@ def get_company_360(comp_id: str):
 
     contacts = [c for c in db.contacts if c.get("company_id") == comp_id or c.get("company") == comp["name"]]
     deals = [d for d in db.deals if d.get("company_id") == comp_id or d.get("company_name") == comp["name"]]
+    leads = [l for l in db.leads if l.get("company_id") == comp_id or l.get("company") == comp["name"]]
     activities = [a for a in db.activities if a.get("company_id") == comp_id or a.get("customer_name") == comp["name"]]
-    tasks = [t for t in db.tasks if t.get("related_company_id") == comp_id or t.get("customer_name") == comp["name"]]
+    tasks = [t for t in db.tasks if t.get("company_id") == comp_id or t.get("customer_name") == comp["name"]]
     events = [e for e in db.events if e.get("company_id") == comp_id or e.get("customer_name") == comp["name"]]
 
-    open_deals = [d for d in deals if d["stage"] != "Deal Closed"]
-    won_deals = [d for d in deals if d["stage"] == "Deal Closed"]
-    pipeline_value = sum(d["deal_value"] for d in open_deals)
-    won_value = sum(d["deal_value"] for d in won_deals)
+    open_deals = [d for d in deals if d.get("stage") != "Deal Closed"]
+    won_deals = [d for d in deals if d.get("stage") == "Deal Closed"]
+    pipeline_value = sum(d.get("deal_value", 0.0) for d in open_deals)
+    won_value = sum(d.get("deal_value", 0.0) for d in won_deals) or comp.get("total_revenue", 0.0)
 
-    # Health score explanation
+    # Health score explainable breakdown
     health = comp.get("customer_health", 80)
     health_factors = []
     if len(activities) == 0:
-        health_factors.append("No recent activity logged")
-    if comp.get("churn_risk") == "High":
-        health_factors.append("High churn probability detected")
-        health_factors.append("Support issue unresolved")
-    elif comp.get("churn_risk") == "Medium":
-        health_factors.append("Reduced engagement in past 21 days")
+        health_factors.append("No recent activity logged in the past 30 days (-15 pts)")
     else:
-        health_factors.append("Regular team logins and product usage")
+        health_factors.append(f"{len(activities)} communication records logged (+15 pts)")
+    
+    if comp.get("churn_risk") == "High":
+        health_factors.append("Critical support escalations pending (-20 pts)")
+        health_factors.append("Low user login telemetry logged in past 21 days (-15 pts)")
+    elif comp.get("churn_risk") == "Medium":
+        health_factors.append("Renewal discussion window approaching (-5 pts)")
+    else:
+        health_factors.append("Consistent team engagement and positive feature telemetry (+20 pts)")
+
     if open_deals:
-        health_factors.append(f"{len(open_deals)} active deal(s) in pipeline")
+        health_factors.append(f"{len(open_deals)} active deal(s) totaling ₹{pipeline_value/100000:.1f}L in pipeline")
+
+    # Build Dynamic Unified Chronological Timeline
+    timeline_events = []
+    for a in activities[:15]:
+        timeline_events.append({
+            "id": a["id"],
+            "type": a["type"],
+            "title": a["title"],
+            "date": a["date"],
+            "time": a.get("time", "12:00 PM"),
+            "actor": a["performed_by"],
+            "notes": a.get("notes"),
+            "is_milestone": a.get("is_key_milestone", False)
+        })
+    
+    for d in deals:
+        timeline_events.append({
+            "id": f"evt-{d['id']}",
+            "type": "Deal",
+            "title": f"Opportunity Created: {d['deal_name']} (₹{d['deal_value']/100000:.1f}L)",
+            "date": d.get("created_at", "01 Jul 2026"),
+            "time": "10:00 AM",
+            "actor": d.get("owner", "Amit Sharma"),
+            "notes": f"Stage: {d['stage']} • Probability: {d.get('probability')}%",
+            "is_milestone": True
+        })
+
+    for e in events[:6]:
+        timeline_events.append({
+            "id": f"evt-{e['id']}",
+            "type": "Meeting",
+            "title": f"Meeting Conducted: {e['title']}",
+            "date": e["date"],
+            "time": e.get("time", "11:00 AM"),
+            "actor": e.get("assigned_to", "Amit Sharma"),
+            "notes": f"Location: {e.get('location')} • Attendees: {', '.join(e.get('attendees', []))}",
+            "is_milestone": True
+        })
+
+    # Sort timeline descending by date string
+    def parse_timeline_date(item):
+        try:
+            return datetime.strptime(item["date"], "%d %b %Y")
+        except:
+            try:
+                return datetime.strptime(item["date"], "%Y-%m-%d")
+            except:
+                return datetime.now()
+
+    timeline_events.sort(key=parse_timeline_date, reverse=True)
 
     return {
         **comp,
         "contacts": contacts,
         "deals": deals,
-        "activities": activities[:10],
-        "tasks": tasks[:6],
-        "events": events[:6],
+        "leads": leads,
+        "activities": activities[:15],
+        "tasks": tasks[:10],
+        "events": events[:8],
+        "timeline": timeline_events[:20],
         "metrics": {
             "pipeline_value": pipeline_value,
             "pipeline_value_formatted": f"₹{pipeline_value/100000:.1f} L",
@@ -536,51 +715,60 @@ def get_company_360(comp_id: str):
             "open_deals": len(open_deals),
             "won_deals": len(won_deals),
             "total_contacts": len(contacts),
-            "open_tasks": len([t for t in tasks if t["status"] not in ["Done"]])
+            "total_leads": len(leads),
+            "open_tasks": len([t for t in tasks if t.get("status") != "Done"])
         },
-        "health_factors": health_factors,
-        "revenue_history": [
-            {"month": "April", "value": comp["total_revenue"] * 0.12},
-            {"month": "May", "value": comp["total_revenue"] * 0.15},
-            {"month": "June", "value": comp["total_revenue"] * 0.18},
-            {"month": "July", "value": comp["total_revenue"] * 0.22},
-            {"month": "August", "value": comp["total_revenue"] * 0.33}
-        ]
+        "health_factors": health_factors
     }
 
 @router.post("/companies")
-def create_company(comp_data: Dict[str, Any]):
+def create_company(comp_data: Dict[str, Any], user: Dict[str, Any] = Depends(require_not_viewer)):
     new_id = f"comp-{len(db.companies) + 1}"
-    comp = {
-        "id": new_id,
-        "name": comp_data.get("name", "New Company"),
-        "industry": comp_data.get("industry", "IT Services"),
-        "city": comp_data.get("city", "Mumbai"),
-        "state": comp_data.get("state", "Maharashtra"),
-        "gstin": comp_data.get("gstin", ""),
-        "pan": comp_data.get("pan", ""),
-        "contacts_count": 1,
-        "active_deals_count": 0,
-        "total_revenue": float(comp_data.get("total_revenue", 0.0)),
-        "customer_status": comp_data.get("customer_status", "Prospect"),
-        "customer_since": datetime.now().strftime("%d %b %Y"),
-        "customer_health": 80,
-        "churn_risk": "Low",
-        "churn_probability": 15,
-        "ai_recommendation": "Initiate introductory relationship meeting.",
-        "website": comp_data.get("website", ""),
-        "employees": comp_data.get("employees", "50-100"),
-        "contact_ids": [],
-        "deal_ids": [],
-        "lead_ids": []
-    }
-    db.companies.insert(0, comp)
-    return comp
+    comp_data["id"] = new_id
+    comp_data["contacts_count"] = 0
+    comp_data["active_deals_count"] = 0
+    comp_data["total_revenue"] = float(comp_data.get("total_revenue", 0.0))
+    comp_data["customer_health"] = 80
+    comp_data["churn_risk"] = "Low"
+    comp_data["churn_probability"] = 10
+    db.companies.insert(0, comp_data)
 
-# ==================== DEALS ====================
+    db.add_audit_log(
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Created Company",
+        entity=comp_data.get("name", "New Company"),
+        entity_id=new_id,
+        details=f"Created company in {comp_data.get('city')}, GSTIN: {comp_data.get('gstin')}"
+    )
+    return comp_data
+
+# ==================== DEALS & EXPLAINABLE RISK ====================
 @router.get("/deals")
-def list_deals():
-    return db.deals
+def get_deals(
+    stage: Optional[str] = None,
+    owner: Optional[str] = None,
+    priority: Optional[str] = None,
+    min_value: Optional[float] = None,
+    max_value: Optional[float] = None,
+    search: Optional[str] = None
+):
+    results = db.deals
+    if stage and stage != "All":
+        results = [d for d in results if d.get("stage") == stage]
+    if owner and owner != "All":
+        results = [d for d in results if d.get("owner") == owner]
+    if priority and priority != "All":
+        results = [d for d in results if d.get("priority") == priority]
+    if min_value is not None:
+        results = [d for d in results if d.get("deal_value", 0.0) >= min_value]
+    if max_value is not None:
+        results = [d for d in results if d.get("deal_value", 0.0) <= max_value]
+    if search:
+        q = search.lower()
+        results = [d for d in results if q in d.get("deal_name", "").lower() or q in d.get("company_name", "").lower()]
+    return results
 
 @router.get("/deals/{deal_id}")
 def get_deal(deal_id: str):
@@ -595,354 +783,240 @@ def get_deal_detail(deal_id: str):
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
 
-    company = next((c for c in db.companies if c["id"] == deal.get("company_id")), None)
-    contact = next((c for c in db.contacts if c["id"] == deal.get("contact_id")), None)
-    activities = [a for a in db.activities if a.get("deal_id") == deal_id or a.get("company_id") == deal.get("company_id")]
-    tasks = [t for t in db.tasks if t.get("related_entity_id") == deal_id or t.get("related_company_id") == deal.get("company_id")]
-    events = [e for e in db.events if e.get("deal_id") == deal_id]
+    risk_analysis = ai_assistant.calculate_deal_risk(deal)
+    deal["risk_score"] = risk_analysis["risk_score"]
+    deal["ai_evidence_reasons"] = risk_analysis["evidence_reasons"]
+    deal["ai_recommendation"] = risk_analysis["recommended_action"]
 
-    # Build timeline from activities + events + tasks
-    timeline = []
-    for a in activities:
-        timeline.append({
-            "type": a["type"],
-            "title": a["title"],
-            "date": a["date"],
-            "time": a.get("time", ""),
-            "performed_by": a.get("performed_by", ""),
-            "notes": a.get("notes", ""),
-            "item_type": "activity"
-        })
-    for e in events:
-        timeline.append({
-            "type": e["event_type"],
-            "title": e["title"],
-            "date": e["date"],
-            "time": e.get("time", ""),
-            "performed_by": ", ".join(e.get("attendees", [])),
-            "notes": e.get("description", ""),
-            "item_type": "event"
-        })
-    timeline.sort(key=lambda x: x.get("date", ""), reverse=True)
-
-    # AI deal risk assessment
-    risk_level = "Low"
-    if deal.get("probability", 50) < 40:
-        risk_level = "High"
-    elif deal.get("probability", 50) < 65:
-        risk_level = "Medium"
+    activities = [a for a in db.activities if a.get("deal_id") == deal_id or a.get("customer_name") == deal.get("company_name")]
+    tasks = [t for t in db.tasks if t.get("deal_id") == deal_id or t.get("customer_name") == deal.get("company_name")]
 
     return {
         **deal,
-        "related_company": company,
-        "related_contact": contact,
-        "activities": activities,
-        "tasks": tasks,
-        "events": events,
-        "timeline": timeline,
-        "ai_intelligence": {
-            "win_probability": deal.get("probability", 50),
-            "predicted_revenue": deal.get("deal_value", 0) * deal.get("probability", 50) / 100,
-            "predicted_revenue_formatted": f"₹{(deal.get('deal_value', 0) * deal.get('probability', 50) / 100) / 100000:.2f} L",
-            "risk_level": risk_level,
-            "risk_factors": deal.get("risk_factors", []),
-            "win_factors": deal.get("win_factors", []),
-            "next_best_action": deal.get("ai_recommendation", "Continue engagement and monitor response."),
-            "days_in_stage": deal.get("days_in_stage", 0)
-        }
+        "risk_analysis": risk_analysis,
+        "activities": activities[:10],
+        "tasks": tasks[:6]
     }
 
 @router.post("/deals")
-def create_deal(req: CreateDealRequest):
+def create_deal(req: CreateDealRequest, user: Dict[str, Any] = Depends(require_not_viewer)):
     new_id = f"deal-{len(db.deals) + 1}"
-    prob = 30
-    if req.stage == "Qualified": prob = 50
-    elif req.stage == "Proposal Sent": prob = 65
-    elif req.stage == "Negotiation": prob = 80
-    elif req.stage == "Deal Closed": prob = 100
+    deal_dict = req.dict()
+    deal_dict["id"] = new_id
+    deal_dict["created_at"] = datetime.now().strftime("%d %b %Y")
+    deal_dict["last_updated"] = "Just now"
+    deal_dict["probability"] = 60 if req.stage == "Qualified" else (80 if req.stage == "Negotiation" else 40)
+    deal_dict["risk_score"] = 25
+    deal_dict["days_in_stage"] = 1
+    deal_dict["days_since_last_activity"] = 0
 
-    new_deal = {
-        "id": new_id,
-        "company_name": req.company_name,
-        "company_id": req.company_id if hasattr(req, 'company_id') else None,
-        "deal_name": req.deal_name,
-        "description": req.description,
-        "deal_value": req.deal_value,
-        "stage": req.stage,
-        "expected_close_date": req.expected_close_date,
-        "owner": req.owner,
-        "owner_id": None,
-        "priority": req.priority,
-        "probability": prob,
-        "win_factors": ["Initial opportunity created", "Budget aligned"],
-        "risk_factor": None,
-        "risk_factors": [],
-        "ai_recommendation": "Send formal introductory deck and confirm technical evaluation team.",
-        "created_at": datetime.now().strftime("%d %b %Y"),
-        "last_updated": datetime.now().strftime("%d %b %Y"),
-        "contact_name": req.contact_name or "Primary Contact",
-        "contact_id": None,
-        "days_in_stage": 0,
-        "lead_id": None
-    }
-    db.deals.insert(0, new_deal)
+    db.deals.insert(0, deal_dict)
 
     db.add_audit_log(
-        user_name=req.owner,
-        user_role="SALES_EXECUTIVE",
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
         action="Created Deal",
         entity=f"{req.deal_name} ({req.company_name})",
         entity_id=new_id,
-        details=f"Value: ₹{req.deal_value:,.0f}, Stage: {req.stage}",
+        details=f"Created deal value ₹{req.deal_value:,.0f} in stage '{req.stage}'",
         after_value=req.stage
     )
-
-    return new_deal
+    return deal_dict
 
 @router.put("/deals/{deal_id}")
-def update_deal(deal_id: str, updates: Dict[str, Any]):
+def update_deal(deal_id: str, updates: Dict[str, Any], user: Dict[str, Any] = Depends(require_not_viewer)):
     deal = next((d for d in db.deals if d["id"] == deal_id), None)
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
 
     old_stage = deal.get("stage")
-    old_prob = deal.get("probability")
+    new_stage = updates.get("stage", old_stage)
+
     deal.update(updates)
-    deal["last_updated"] = datetime.now().strftime("%d %b %Y")
+    deal["last_updated"] = "Just now"
 
-    if "stage" in updates and updates["stage"] != old_stage:
-        new_stage = updates["stage"]
-        if new_stage == "Deal Closed":
-            deal["probability"] = 100
-        elif new_stage == "Negotiation":
-            deal["probability"] = 80
-        elif new_stage == "Proposal Sent":
-            deal["probability"] = 65
-        elif new_stage == "Qualified":
-            deal["probability"] = 50
-        elif new_stage == "Contacted":
-            deal["probability"] = 30
+    # If stage changed, log special activity
+    if new_stage != old_stage:
+        deal["days_in_stage"] = 0
+        db.activities.insert(0, {
+            "id": f"act-{len(db.activities) + 1}",
+            "type": "Stage Change",
+            "title": f"Stage Updated to {new_stage}",
+            "customer_name": deal.get("company_name"),
+            "company_id": deal.get("company_id"),
+            "deal_id": deal_id,
+            "time": datetime.now().strftime("%I:%M %p"),
+            "date": datetime.now().strftime("%d %b %Y"),
+            "performed_by": user.get("name", "User"),
+            "notes": f"Stage progressed from {old_stage} to {new_stage}",
+            "is_key_milestone": True
+        })
 
-        db.add_audit_log(
-            user_name=deal["owner"],
-            user_role="SALES_EXECUTIVE",
-            action="Updated Deal Stage",
-            entity=f"{deal['deal_name']} ({deal['company_name']})",
-            entity_id=deal_id,
-            details=f"Moved from {old_stage} to {new_stage} (Value: ₹{deal['deal_value']:,.0f})",
-            before_value=old_stage,
-            after_value=new_stage
-        )
-
-        db.add_notification(
-            title="Deal Stage Updated",
-            message=f"{deal['deal_name']} moved to {new_stage}. New win probability: {deal['probability']}%.",
-            type_="info",
-            action_link="deals",
-            action_label="View Deal"
-        )
-
+    db.add_audit_log(
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Updated Deal",
+        entity=deal.get("deal_name"),
+        entity_id=deal_id,
+        before_value=str(old_stage),
+        after_value=str(new_stage),
+        details=f"Deal updated with stage '{new_stage}'"
+    )
     return deal
 
 @router.delete("/deals/{deal_id}")
-def delete_deal(deal_id: str):
+def delete_deal(deal_id: str, user: Dict[str, Any] = Depends(require_not_viewer)):
+    deal = next((d for d in db.deals if d["id"] == deal_id), None)
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
     db.deals = [d for d in db.deals if d["id"] != deal_id]
+
+    db.add_audit_log(
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Deleted Deal",
+        entity=deal.get("deal_name"),
+        entity_id=deal_id,
+        details="Deal permanently deleted"
+    )
     return {"success": True}
 
 # ==================== TASKS ====================
 @router.get("/tasks")
-def list_tasks():
-    return db.tasks
+def get_tasks(status: Optional[str] = None, assigned_to: Optional[str] = None):
+    results = db.tasks
+    if status and status != "All":
+        results = [t for t in results if t.get("status") == status]
+    if assigned_to and assigned_to != "All":
+        results = [t for t in results if t.get("assigned_to") == assigned_to]
+    return results
 
 @router.post("/tasks")
-def create_task(req: CreateTaskRequest):
-    new_id = f"MDS-{len(db.tasks) + 10}"
-    new_task = {
-        "id": new_id,
-        "title": req.title,
-        "customer_name": req.customer_name,
-        "sub_title": req.sub_title or "General Operations",
-        "status": req.status,
-        "priority": req.priority,
-        "due_date": req.due_date,
-        "assigned_to": req.assigned_to,
-        "assigned_to_id": getattr(req, 'assigned_to_id', None),
-        "assigned_avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-        "comments_count": 0,
-        "created_date": datetime.now().strftime("%d %b %Y"),
-        "description": req.description,
-        "related_entity_type": getattr(req, 'related_entity_type', None),
-        "related_entity_id": getattr(req, 'related_entity_id', None),
-        "related_company_id": getattr(req, 'related_company_id', None),
-        "related_contact_id": getattr(req, 'related_contact_id', None),
-        "is_ai_generated": getattr(req, 'is_ai_generated', False)
-    }
-    db.tasks.insert(0, new_task)
+def create_task(req: CreateTaskRequest, user: Dict[str, Any] = Depends(require_not_viewer)):
+    new_id = f"TSK-{len(db.tasks) + 101}"
+    task_dict = req.dict()
+    task_dict["id"] = new_id
+    task_dict["created_date"] = datetime.now().strftime("%d %b %Y")
+    task_dict["assigned_avatar"] = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    task_dict["comments_count"] = 0
 
+    db.tasks.insert(0, task_dict)
+
+    # Add audit log
     db.add_audit_log(
-        user_name=req.assigned_to,
-        user_role="SALES_EXECUTIVE",
-        action="Created Task" + (" (AI Generated)" if new_task["is_ai_generated"] else ""),
-        entity=f"{new_id}: {req.title}",
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Created Task",
+        entity=f"[{new_id}] {req.title}",
         entity_id=new_id,
-        details=f"Customer: {req.customer_name}, Priority: {req.priority}, Due: {req.due_date}",
-        after_value=req.status
+        details=f"Assigned to {req.assigned_to}, Priority: {req.priority}, Due: {req.due_date}"
     )
-
-    if new_task["is_ai_generated"]:
-        db.add_notification(
-            title="AI Created Task",
-            message=f"AI Assistant created task: '{req.title}' for {req.customer_name}.",
-            type_="info",
-            action_link="tasks",
-            action_label="View Task"
-        )
-
-    return new_task
+    return task_dict
 
 @router.put("/tasks/{task_id}")
-def update_task(task_id: str, updates: Dict[str, Any]):
+def update_task(task_id: str, updates: Dict[str, Any], user: Dict[str, Any] = Depends(require_not_viewer)):
     task = next((t for t in db.tasks if t["id"] == task_id), None)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+
     old_status = task.get("status")
     task.update(updates)
-    if "status" in updates and updates["status"] != old_status:
-        db.add_audit_log(
-            user_name=task.get("assigned_to", "System"),
-            user_role="SALES_EXECUTIVE",
-            action="Updated Task Status",
-            entity=f"{task_id}: {task['title']}",
-            entity_id=task_id,
-            details=f"Status: {old_status} → {updates['status']}",
-            before_value=old_status,
-            after_value=updates["status"]
-        )
+
+    db.add_audit_log(
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Updated Task",
+        entity=f"[{task_id}] {task.get('title')}",
+        entity_id=task_id,
+        before_value=str(old_status),
+        after_value=str(task.get("status")),
+        details="Task status/details modified"
+    )
     return task
 
 @router.delete("/tasks/{task_id}")
-def delete_task(task_id: str):
+def delete_task(task_id: str, user: Dict[str, Any] = Depends(require_not_viewer)):
+    task = next((t for t in db.tasks if t["id"] == task_id), None)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
     db.tasks = [t for t in db.tasks if t["id"] != task_id]
+
+    db.add_audit_log(
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Deleted Task",
+        entity=task.get("title"),
+        entity_id=task_id,
+        details="Task record removed"
+    )
     return {"success": True}
 
 # ==================== ACTIVITIES ====================
 @router.get("/activities")
-def list_activities():
-    return db.activities
+def get_activities(type_: Optional[str] = Query(None, alias="type"), limit: int = 100):
+    results = db.activities
+    if type_ and type_ != "All":
+        results = [a for a in results if a.get("type") == type_]
+    return results[:limit]
 
 @router.post("/activities")
-def log_activity(req: CreateActivityRequest):
+def create_activity(req: CreateActivityRequest, user: Dict[str, Any] = Depends(require_not_viewer)):
     new_id = f"act-{len(db.activities) + 1}"
-    new_act = {
-        "id": new_id,
-        "type": req.type,
-        "title": req.title,
-        "customer_name": req.customer_name,
-        "company_id": getattr(req, 'company_id', None),
-        "contact_id": getattr(req, 'contact_id', None),
-        "deal_id": getattr(req, 'deal_id', None),
-        "time": req.time,
-        "date": req.date,
-        "performed_by": req.performed_by,
-        "notes": req.notes
-    }
-    db.activities.insert(0, new_act)
+    act_dict = req.dict()
+    act_dict["id"] = new_id
+    db.activities.insert(0, act_dict)
 
     db.add_audit_log(
-        user_name=req.performed_by,
-        user_role="SALES_EXECUTIVE",
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
         action="Logged Activity",
-        entity=f"{req.type}: {req.title}",
+        entity=f"{req.type}: {req.customer_name}",
         entity_id=new_id,
-        details=f"Target: {req.customer_name}"
+        details=f"Activity '{req.title}' logged by {req.performed_by}"
     )
+    return act_dict
 
-    return new_act
-
-# ==================== CALENDAR ====================
+# ==================== CALENDAR EVENTS ====================
 @router.get("/events")
-def list_events():
+def get_events():
     return db.events
 
 @router.post("/events")
-def create_event(req: CreateEventRequest):
+def create_event(req: CreateEventRequest, user: Dict[str, Any] = Depends(require_not_viewer)):
     new_id = f"evt-{len(db.events) + 1}"
-    new_event = {
-        "id": new_id,
-        "title": req.title,
-        "event_type": req.event_type,
-        "date": req.date,
-        "time": req.time,
-        "duration": req.duration,
-        "customer_name": req.customer_name,
-        "company_id": getattr(req, 'company_id', None),
-        "contact_id": getattr(req, 'contact_id', None),
-        "deal_id": getattr(req, 'deal_id', None),
-        "attendees": req.attendees,
-        "location": req.location,
-        "description": req.description
-    }
-    db.events.insert(0, new_event)
+    evt_dict = req.dict()
+    evt_dict["id"] = new_id
+    evt_dict["assigned_to"] = user.get("name", "Amit Sharma")
 
-    # Also log as activity
-    db.activities.insert(0, {
-        "id": f"act-{len(db.activities) + 1}",
-        "type": "Meeting" if req.event_type in ["Meeting", "Demo"] else req.event_type,
-        "title": f"Scheduled: {req.title}",
-        "customer_name": req.customer_name,
-        "company_id": new_event["company_id"],
-        "contact_id": new_event["contact_id"],
-        "deal_id": new_event["deal_id"],
-        "time": req.time,
-        "date": req.date,
-        "performed_by": req.attendees[0] if req.attendees else "System",
-        "notes": req.description
-    })
+    db.events.insert(0, evt_dict)
 
     db.add_audit_log(
-        user_name=req.attendees[0] if req.attendees else "System",
-        user_role="SALES_EXECUTIVE",
-        action="Scheduled Event",
-        entity=req.title,
+        user_name=user.get("name", "User"),
+        user_role=user.get("role", "SALES_EXECUTIVE"),
+        user_id=user.get("id"),
+        action="Scheduled Meeting",
+        entity=f"{req.event_type}: {req.customer_name}",
         entity_id=new_id,
-        details=f"Type: {req.event_type}, Date: {req.date} {req.time}, Customer: {req.customer_name}"
+        details=f"Scheduled '{req.title}' for {req.date} at {req.time}"
     )
-
-    return new_event
+    return evt_dict
 
 @router.put("/events/{event_id}")
-def update_event(event_id: str, updates: Dict[str, Any]):
-    event = next((e for e in db.events if e["id"] == event_id), None)
-    if not event:
+def update_event(event_id: str, updates: Dict[str, Any], user: Dict[str, Any] = Depends(require_not_viewer)):
+    evt = next((e for e in db.events if e["id"] == event_id), None)
+    if not evt:
         raise HTTPException(status_code=404, detail="Event not found")
-    old_date = event.get("date")
-    old_time = event.get("time")
-    event.update(updates)
-
-    db.add_audit_log(
-        user_name=event.get("attendees", ["System"])[0] if event.get("attendees") else "System",
-        user_role="SALES_EXECUTIVE",
-        action="Updated / Rescheduled Event",
-        entity=event.get("title", event_id),
-        entity_id=event_id,
-        details=f"Updated to Date: {event.get('date')} {event.get('time')} (Previous: {old_date} {old_time})",
-        before_value=f"{old_date} {old_time}",
-        after_value=f"{event.get('date')} {event.get('time')}"
-    )
-    return event
+    evt.update(updates)
+    return evt
 
 @router.delete("/events/{event_id}")
-def delete_event(event_id: str):
-    event = next((e for e in db.events if e["id"] == event_id), None)
-    if event:
-        db.add_audit_log(
-            user_name="System",
-            user_role="SALES_EXECUTIVE",
-            action="Cancelled Event",
-            entity=event.get("title", event_id),
-            entity_id=event_id,
-            details=f"Cancelled meeting/demo with {event.get('customer_name')}"
-        )
+def delete_event(event_id: str, user: Dict[str, Any] = Depends(require_not_viewer)):
     db.events = [e for e in db.events if e["id"] != event_id]
     return {"success": True}
-

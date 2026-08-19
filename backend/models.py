@@ -4,10 +4,12 @@ from datetime import datetime
 from enum import Enum
 
 class UserRole(str, Enum):
+    SUPER_ADMIN = "SUPER_ADMIN"
     ADMIN = "ADMIN"
     SALES_MANAGER = "SALES_MANAGER"
     SALES_EXECUTIVE = "SALES_EXECUTIVE"
     SUPPORT_AGENT = "SUPPORT_AGENT"
+    VIEWER = "VIEWER"
 
 class LeadStatus(str, Enum):
     NEW = "New"
@@ -44,6 +46,7 @@ class ActivityType(str, Enum):
     NOTE = "Note"
     TASK = "Task"
     FOLLOW_UP = "Follow-up"
+    STAGE_CHANGE = "Stage Change"
 
 class User(BaseModel):
     id: str
@@ -54,6 +57,8 @@ class User(BaseModel):
     avatar: str
     status: str = "Active"
     last_active: str = "Just now"
+    team: Optional[str] = "Enterprise Sales"
+    phone: Optional[str] = "+91 98765 43210"
 
 class Lead(BaseModel):
     id: str
@@ -77,12 +82,16 @@ class Lead(BaseModel):
     last_contact: Optional[str] = "16 Aug 2026"
     ai_summary: Optional[str] = None
     ai_reasons: Optional[List[str]] = []
+    ai_positive_factors: Optional[List[str]] = []
+    ai_risk_factors: Optional[List[str]] = []
     ai_recommended_action: Optional[str] = None
+    company_id: Optional[str] = None
 
 class Contact(BaseModel):
     id: str
     name: str
     company: str
+    company_id: Optional[str] = None
     designation: str
     email: str
     phone: str
@@ -94,6 +103,7 @@ class Contact(BaseModel):
     created_at: str = "10 Jan 2026"
     ai_summary: Optional[str] = None
     avatar: Optional[str] = None
+    department: Optional[str] = "Engineering"
 
 class Company(BaseModel):
     id: str
@@ -114,10 +124,15 @@ class Company(BaseModel):
     ai_recommendation: Optional[str] = None
     website: Optional[str] = None
     employees: Optional[str] = "50-200"
+    account_owner: Optional[str] = "Amit Sharma"
+    contact_ids: Optional[List[str]] = []
+    deal_ids: Optional[List[str]] = []
+    lead_ids: Optional[List[str]] = []
 
 class Deal(BaseModel):
     id: str
     company_name: str
+    company_id: Optional[str] = None
     deal_name: str
     description: str
     deal_value: float  # In INR
@@ -128,15 +143,22 @@ class Deal(BaseModel):
     probability: int = 50
     win_factors: Optional[List[str]] = []
     risk_factor: Optional[str] = None
+    risk_score: Optional[int] = 30
     ai_recommendation: Optional[str] = None
+    ai_evidence_reasons: Optional[List[str]] = []
     created_at: str = "01 Aug 2026"
     last_updated: str = "16 Aug 2026"
+    days_in_stage: Optional[int] = 5
+    days_since_last_activity: Optional[int] = 3
     contact_name: Optional[str] = None
+    contact_id: Optional[str] = None
 
 class Task(BaseModel):
     id: str  # MDS-39
     title: str
     customer_name: str
+    company_id: Optional[str] = None
+    deal_id: Optional[str] = None
     sub_title: Optional[str] = None
     status: TaskStatus
     priority: Priority
@@ -146,16 +168,20 @@ class Task(BaseModel):
     comments_count: int = 0
     created_date: str = "14 Aug 2026"
     description: Optional[str] = None
+    is_ai_generated: Optional[bool] = False
 
 class Activity(BaseModel):
     id: str
     type: ActivityType
     title: str
     customer_name: str
+    company_id: Optional[str] = None
+    deal_id: Optional[str] = None
     time: str
     date: str
     performed_by: str
     notes: Optional[str] = None
+    is_key_milestone: Optional[bool] = False
 
 class CalendarEvent(BaseModel):
     id: str
@@ -165,9 +191,12 @@ class CalendarEvent(BaseModel):
     time: str
     duration: str
     customer_name: str
+    company_id: Optional[str] = None
+    deal_id: Optional[str] = None
     attendees: List[str] = []
     location: Optional[str] = "Google Meet"
     description: Optional[str] = None
+    assigned_to: Optional[str] = "Amit Sharma"
 
 class DocumentChunk(BaseModel):
     chunk_id: str
@@ -189,6 +218,7 @@ class DocumentItem(BaseModel):
     status: str = "Indexed ✓"
     file_size: str = "1.2 MB"
     content_summary: Optional[str] = None
+    access_roles: Optional[List[str]] = ["ADMIN", "SALES_MANAGER", "SALES_EXECUTIVE", "SUPPORT_AGENT", "VIEWER"]
     chunks: Optional[List[DocumentChunk]] = []
 
 class NotificationItem(BaseModel):
@@ -204,11 +234,17 @@ class NotificationItem(BaseModel):
 class AuditLogItem(BaseModel):
     id: str
     timestamp: str
+    user_id: Optional[str] = None
     user_name: str
     user_role: str
     action: str
     entity: str
+    entity_id: Optional[str] = None
     details: str
+    before_value: Optional[str] = None
+    after_value: Optional[str] = None
+    ip_address: Optional[str] = "192.168.1.45"
+    severity: Optional[str] = "INFO"  # INFO, WARNING, CRITICAL
 
 class AIChatQuery(BaseModel):
     query: str
@@ -221,6 +257,7 @@ class AIChatResponse(BaseModel):
     sources: List[Dict[str, Any]]
     crm_records: Optional[List[Dict[str, Any]]] = []
     recommended_action: Optional[Dict[str, Any]] = None
+    intent: Optional[str] = "rag_grounded_answer"
 
 class CreateLeadRequest(BaseModel):
     first_name: str
@@ -249,6 +286,7 @@ class CreateDealRequest(BaseModel):
     owner: str
     priority: Priority = Priority.NORMAL
     contact_name: Optional[str] = None
+    company_id: Optional[str] = None
 
 class CreateTaskRequest(BaseModel):
     title: str
@@ -259,6 +297,8 @@ class CreateTaskRequest(BaseModel):
     due_date: str
     assigned_to: str
     description: Optional[str] = None
+    company_id: Optional[str] = None
+    deal_id: Optional[str] = None
 
 class CreateActivityRequest(BaseModel):
     type: ActivityType
@@ -268,6 +308,8 @@ class CreateActivityRequest(BaseModel):
     date: str
     performed_by: str
     notes: Optional[str] = None
+    company_id: Optional[str] = None
+    deal_id: Optional[str] = None
 
 class CreateEventRequest(BaseModel):
     title: str
@@ -279,3 +321,5 @@ class CreateEventRequest(BaseModel):
     attendees: List[str] = []
     location: Optional[str] = "Google Meet"
     description: Optional[str] = None
+    company_id: Optional[str] = None
+    deal_id: Optional[str] = None

@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from backend.database import db
 from backend.ai_assistant import ai_assistant
+from backend.routes.auth import get_current_user_from_header
 
 router = APIRouter(prefix="/api/ai", tags=["AI & Predictions"])
 
@@ -17,84 +18,98 @@ class GenerateEmailRequest(BaseModel):
     context: Optional[str] = None
 
 @router.post("/chat")
-def chat_ai(req: ChatRequest):
-    return ai_assistant.process_query(query=req.query, user_role=req.role if hasattr(req, "role") else req.user_role)
+def chat_ai(req: ChatRequest, user: Dict[str, Any] = Depends(get_current_user_from_header)):
+    caller_role = user.get("role", req.user_role)
+    return ai_assistant.process_query(query=req.query, user_role=caller_role)
 
 @router.get("/insights")
 def get_ai_insights():
-    # 1. Lead Scoring List
-    lead_scores = [
-        {
+    # 1. Lead Scoring List with Signal Explanations
+    lead_scores = []
+    for l in db.leads[:25]:
+        analysis = ai_assistant.calculate_lead_score(l)
+        lead_scores.append({
             "id": l["id"],
             "lead_name": f"{l['first_name']} {l['last_name']}",
             "company": l["company"],
-            "score": l["lead_score"],
-            "probability": "High probability" if l["lead_score"] >= 80 else ("Medium probability" if l["lead_score"] >= 60 else "Low probability"),
-            "reasons": l.get("ai_reasons", ["Engagement signal"]),
-            "recommended_action": l.get("ai_recommended_action", "Follow-up with lead"),
-            "value": f"₹{l['lead_value']:,.0f}"
-        }
-        for l in db.leads
-    ]
+            "score": analysis["score"],
+            "probability": "High probability" if analysis["score"] >= 80 else ("Medium probability" if analysis["score"] >= 60 else "Low probability"),
+            "reasons": analysis["positive_factors"],
+            "positive_factors": analysis["positive_factors"],
+            "risk_factors": analysis["risk_factors"],
+            "recommended_action": analysis["recommended_action"],
+            "value": f"₹{l.get('lead_value', 0):,.0f}"
+        })
 
-    # 2. Deal Predictions
-    deal_predictions = [
-        {
+    # 2. Deal Risk Predictions with Facts vs Scores vs Actions
+    deal_predictions = []
+    for d in db.deals[:25]:
+        risk_data = ai_assistant.calculate_deal_risk(d)
+        deal_predictions.append({
             "id": d["id"],
             "deal_name": d["deal_name"],
             "company_name": d["company_name"],
             "deal_value_raw": d["deal_value"],
             "deal_value_formatted": f"₹{d['deal_value']/100000:.1f} L",
-            "win_probability": d["probability"],
-            "expected_revenue": f"₹{(d['deal_value'] * d['probability'] / 100) / 100000:.2f} L",
-            "risk_factor": d.get("risk_factor"),
-            "ai_recommendation": d.get("ai_recommendation"),
-            "owner": d["owner"]
-        }
-        for d in db.deals
-    ]
+            "win_probability": d.get("probability", 50),
+            "risk_score": risk_data["risk_score"],
+            "risk_level": risk_data["risk_level"],
+            "evidence_reasons": risk_data["evidence_reasons"],
+            "ai_interpretation": risk_data["ai_interpretation"],
+            "recommended_action": risk_data["recommended_action"],
+            "action_payload": risk_data.get("action_payload"),
+            "owner": d.get("owner", "Amit Sharma")
+        })
 
-    # 3. Churn Predictions
-    churn_predictions = [
-        {
+    # 3. Customer Churn Risk & Health Factors
+    churn_predictions = []
+    for c in db.companies[:20]:
+        reasons = [
+            f"Health Score: {c['customer_health']}/100 with {c['churn_risk']} Churn Risk",
+            f"Active revenue: ₹{c['total_revenue']/100000:.1f}L",
+            "Contract renewal window open"
+        ]
+        if c.get("churn_risk") == "High":
+            reasons.insert(0, "High churn probability detected: Low activity telemetry")
+
+        churn_predictions.append({
             "id": c["id"],
             "company_name": c["name"],
             "city": c["city"],
             "churn_risk": c.get("churn_risk", "Low"),
-            "churn_probability": c.get("churn_probability", 15),
+            "churn_probability": c.get("churn_probability", 12),
             "health_score": c.get("customer_health", 80),
-            "reasons": [
-                "Support complaint unresolved" if c.get("churn_risk") == "High" else "Normal platform engagement",
-                "Reduced user activity in past 21 days" if c.get("churn_risk") in ["High", "Medium"] else "Regular team logins",
-                "Contract renewal approaching"
-            ],
+            "reasons": reasons,
             "recommendation": c.get("ai_recommendation", "Conduct quarterly business review")
-        }
-        for c in db.companies
-    ]
+        })
 
-    # 4. Next Best Actions
+    # 4. Next Best Actions (with real executable payloads)
     next_best_actions = [
         {
-            "id": "nba-1",
+            "id": "nba-technova",
             "company_name": "TechNova Solutions",
-            "context": "Executive proposal under active review (12 opens detected).",
-            "recommended_action": "Schedule a product demonstration & closing call within 24 hours.",
-            "rationale": "High executive engagement + pricing review + decision maker Rahul Sharma active.",
+            "context": "₹8.4L active opportunity in Negotiation stage. No interaction for 18 days.",
+            "recommended_action": "Schedule an account review within 48 hours.",
+            "rationale": "Deal has remained in Negotiation for 11 days with 72% win probability and approaching close date.",
             "action_type": "create_task",
-            "action_label": "Create Closing Task",
+            "action_label": "Create Account Review Task",
             "payload": {
-                "title": "Closing meeting with TechNova Sales Director",
+                "title": "Account Review with TechNova Solutions CTO",
                 "customer_name": "TechNova Solutions",
-                "priority": "Urgent"
+                "company_id": "comp-1",
+                "deal_id": "deal-1",
+                "priority": "Urgent",
+                "due_date": "22 Aug 2026",
+                "assigned_to": "Amit Sharma",
+                "description": "Urgent review required to address 18-day inactivity on ₹8.4L deal."
             }
         },
         {
-            "id": "nba-2",
+            "id": "nba-finedge",
             "company_name": "FinEdge Systems",
-            "context": "Pricing objection detected regarding annual prepayment terms.",
-            "recommended_action": "Offer customized annual-plan pricing with complimentary onboarding instead of discounting base price.",
-            "rationale": "Protects gross margin while satisfying VP of Operations budget parameters.",
+            "context": "Annual prepayment discount objection for Q3 expansion.",
+            "recommended_action": "Offer customized annual-plan pricing with complimentary onboarding instead of base discounting.",
+            "rationale": "Protects 78% software gross margin while satisfying VP of Operations budget parameters.",
             "action_type": "generate_email",
             "action_label": "Generate ROI Email",
             "payload": {
@@ -104,16 +119,24 @@ def get_ai_insights():
             }
         },
         {
-            "id": "nba-3",
-            "company_name": "Global Solutions Ltd",
-            "context": "Customer health dropped to 42/100; zero telemetry logged in 28 days.",
-            "recommended_action": "Initiate executive sponsor retention intervention.",
-            "rationale": "81% churn probability unless immediate customer success check-in is conducted.",
+            "id": "nba-bharat",
+            "company_name": "Bharat Logistics Corp",
+            "context": "Fleet tracking module utilization down 12% in past 30 days.",
+            "recommended_action": "Schedule Technical Account Review & Operations Training.",
+            "rationale": "Proactive intervention prevents potential churn on ₹24.0L annual contract.",
             "action_type": "schedule_meeting",
-            "action_label": "Schedule Retention Meeting",
+            "action_label": "Schedule Review Call",
             "payload": {
-                "customer_name": "Global Solutions Ltd",
-                "title": "Customer Retention Review - Global Solutions"
+                "customer_name": "Bharat Logistics Corp",
+                "company_id": "comp-3",
+                "title": "Technical Account Review - Bharat Logistics",
+                "event_type": "Meeting",
+                "date": "23 Aug 2026",
+                "time": "14:00",
+                "duration": "45 mins",
+                "attendees": ["Amit Sharma", "harish.verma@bharatlogistics.in"],
+                "location": "Google Meet",
+                "description": "Review fleet tracking module adoption and resolve API limits."
             }
         }
     ]
@@ -134,16 +157,16 @@ Dear {req.recipient_name},
 
 I hope this email finds you well.
 
-I wanted to follow up on our recent conversation regarding how Nexora CRM can help streamline sales pipeline visibility and automate Indian GST compliance workflows for {req.company_name}.
+I wanted to follow up on our recent conversation regarding how Nexora CRM can streamline sales pipeline visibility and automate Indian GST compliance workflows for {req.company_name}.
 
-Our team has prepared a tailored demonstration showing our AI Knowledge Assistant integrated with your product catalogs and lead channels. 
+Our solutions engineering team has prepared a tailored demonstration showing our AI Knowledge Assistant integrated with your product catalogs and lead channels.
 
 Would you have 15 minutes available this Wednesday or Thursday for a brief walkthrough?
 
 Warm regards,
 Amit Sharma
 Senior Sales Executive | Nexora CRM
-+91 98765 43210 | amit.sharma@nexoracrm.in""",
++91 98202 33443 | amit.sharma@nexoracrm.in""",
 
         "ROI Proposition": f"""Subject: Projected ROI & Efficiency Gains with Nexora CRM for {req.company_name}
 
@@ -162,7 +185,7 @@ Let me know if we can finalize the contract draft this week.
 Best regards,
 Priya Patil
 Sales Manager | Nexora CRM
-+91 98765 43211 | priya.patil@nexoracrm.in"""
++91 98201 22332 | priya.patil@nexoracrm.in"""
     }
 
     body = templates.get(req.purpose, templates["Follow-up"])

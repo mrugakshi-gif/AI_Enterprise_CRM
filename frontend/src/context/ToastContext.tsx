@@ -9,6 +9,7 @@ interface Toast {
 
 interface ToastContextType {
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  addToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -30,7 +31,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, addToast: showToast }}>
       {children}
       <div style={{
         position: 'fixed',

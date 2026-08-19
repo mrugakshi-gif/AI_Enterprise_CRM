@@ -1,63 +1,75 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '../types/crm';
-import { ShieldCheck, KeyRound, Check, X, Sparkles } from 'lucide-react';
+import { ShieldCheck, KeyRound, Check, X, Sparkles, Lock, Eye } from 'lucide-react';
 
 export const RolesPermissionsPage: React.FC = () => {
   const { role: currentActiveRole, switchRole } = useAuth();
 
   const roleDefinitions = [
     {
+      role: 'SUPER_ADMIN' as UserRole,
+      title: 'Super Administrator',
+      desc: 'Master administrative authority over all CRM data, security policies, AI configurations, and audit systems.',
+      users: ['Kabir Mehta (CEO)']
+    },
+    {
       role: 'ADMIN' as UserRole,
-      title: 'System Administrator (Executive)',
-      desc: 'Full unconstrained access to all CRM records, financial metrics, RAG knowledge store, audit trails, and system config.',
-      users: ['Kabir Mehta']
+      title: 'System Administrator',
+      desc: 'Enterprise administrator managing team assignments, settings, policy documents, and operational permissions.',
+      users: ['Aditya Verma']
     },
     {
       role: 'SALES_MANAGER' as UserRole,
       title: 'Sales Manager',
-      desc: 'Pipeline supervision, discount approvals, team member reporting, and customer contract negotiations.',
-      users: ['Priya Patil']
+      desc: 'Pipeline supervision, discount authorizations up to 20%, team quotas, and revenue forecasting analytics.',
+      users: ['Priya Patil', 'Ananya Deshmukh']
     },
     {
       role: 'SALES_EXECUTIVE' as UserRole,
-      title: 'Sales Executive (Representative)',
-      desc: 'Frontline sales representative handling assigned leads, active customer deals, tasks, follow-up calls, and email generation.',
-      users: ['Amit Sharma', 'Rohan Joshi']
+      title: 'Sales Executive',
+      desc: 'Frontline sales representative managing assigned leads, active deals, follow-up calls, tasks, and discount quotes up to 15%.',
+      users: ['Amit Sharma', 'Rohan Joshi', 'Vikram Malhotra', 'Neha Singhania']
     },
     {
       role: 'SUPPORT_AGENT' as UserRole,
-      title: 'Customer Support & Success Agent',
-      desc: 'Client onboarding, customer health telemetry monitoring, support activity logging, and policy knowledge base lookups.',
-      users: ['Sneha Kulkarni']
+      title: 'Customer Support Agent',
+      desc: 'Customer onboarding, health score monitoring, support ticket activities, and policy knowledge queries.',
+      users: ['Sneha Kulkarni', 'Pooja Hegde', 'Divya Menon']
+    },
+    {
+      role: 'VIEWER' as UserRole,
+      title: 'Read-Only Viewer',
+      desc: 'Strict read-only access for compliance auditors, investors, and board members. All mutation actions are blocked.',
+      users: ['Rhea Kapoor (Auditor)']
     }
   ];
 
   const permissionsMatrix = [
-    { feature: 'Executive Dashboard & Financials', admin: true, manager: true, exec: true, support: true },
-    { feature: 'Manage & Convert Leads', admin: true, manager: true, exec: true, support: false },
-    { feature: 'Create & Update Deals / Pipeline', admin: true, manager: true, exec: true, support: false },
-    { feature: 'View Full Company 360 & GSTIN Profiles', admin: true, manager: true, exec: true, support: true },
-    { feature: 'Upload & Manage RAG Documents', admin: true, manager: false, exec: false, support: false },
-    { feature: 'Use AI Knowledge Assistant', admin: true, manager: true, exec: true, support: true },
-    { feature: 'Export Financial & Sales Reports', admin: true, manager: true, exec: false, support: false },
-    { feature: 'Manage Users & Permissions Matrix', admin: true, manager: false, exec: false, support: false },
-    { feature: 'Inspect Enterprise Audit Logs', admin: true, manager: false, exec: false, support: false }
+    { feature: 'Executive Dashboard & Metrics', superAdmin: true, admin: true, manager: true, exec: true, support: true, viewer: true },
+    { feature: 'Manage & Convert Leads', superAdmin: true, admin: true, manager: true, exec: true, support: false, viewer: false },
+    { feature: 'Create & Update Deals / Pipeline', superAdmin: true, admin: true, manager: true, exec: true, support: false, viewer: false },
+    { feature: 'Customer 360 & GST Profiles', superAdmin: true, admin: true, manager: true, exec: true, support: true, viewer: true },
+    { feature: 'Upload & Index RAG Policy Documents', superAdmin: true, admin: true, manager: false, exec: false, support: false, viewer: false },
+    { feature: 'Use AI Knowledge Assistant', superAdmin: true, admin: true, manager: true, exec: true, support: true, viewer: true },
+    { feature: 'Export Financial & Sales Reports', superAdmin: true, admin: true, manager: true, exec: false, support: false, viewer: true },
+    { feature: 'Manage Users & Permissions Matrix', superAdmin: true, admin: true, manager: false, exec: false, support: false, viewer: false },
+    { feature: 'Inspect Enterprise Audit Trail', superAdmin: true, admin: true, manager: false, exec: false, support: false, viewer: true }
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
-        <h1 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-          Role-Based Access Control (RBAC)
+        <h1 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <KeyRound size={24} color="var(--accent-blue)" /> Enterprise Role-Based Access Control (RBAC)
         </h1>
         <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
-          Enforce granular security policies across Admin, Sales Manager, Sales Representative, and Customer Support roles.
+          Backend-enforced security policies across 6 enterprise tiers with instant sandbox testing.
         </p>
       </div>
 
       {/* Role Switcher Sandbox Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
         {roleDefinitions.map(r => {
           const isActive = currentActiveRole === r.role;
           return (
@@ -83,7 +95,7 @@ export const RolesPermissionsPage: React.FC = () => {
                   {r.desc}
                 </p>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                  Assigned Users: <strong>{r.users.join(', ')}</strong>
+                  Assigned Team: <strong>{r.users.join(', ')}</strong>
                 </div>
               </div>
 
@@ -93,7 +105,7 @@ export const RolesPermissionsPage: React.FC = () => {
                   className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ width: '100%' }}
                 >
-                  {isActive ? 'Current Active Role' : `Switch to ${r.role}`}
+                  {isActive ? 'Current Active Role' : `Switch Role to ${r.role}`}
                 </button>
               </div>
             </div>
@@ -102,38 +114,33 @@ export const RolesPermissionsPage: React.FC = () => {
       </div>
 
       {/* Permissions Matrix Table */}
-      <div className="card" style={{ padding: '24px' }}>
-        <h2 style={{ fontSize: '17px', fontWeight: 700, marginBottom: '16px' }}>
-          Permissions & Capability Matrix
+      <div className="card" style={{ padding: '20px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ShieldCheck size={18} color="#10B981" /> 6-Tier RBAC Permission Enforcement Matrix
         </h2>
-
         <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
                 <th>CRM Feature / Capability</th>
-                <th style={{ textAlign: 'center' }}>ADMIN</th>
-                <th style={{ textAlign: 'center' }}>SALES MANAGER</th>
-                <th style={{ textAlign: 'center' }}>SALES EXEC</th>
-                <th style={{ textAlign: 'center' }}>SUPPORT AGENT</th>
+                <th style={{ textAlign: 'center' }}>Super Admin</th>
+                <th style={{ textAlign: 'center' }}>Admin</th>
+                <th style={{ textAlign: 'center' }}>Sales Manager</th>
+                <th style={{ textAlign: 'center' }}>Sales Executive</th>
+                <th style={{ textAlign: 'center' }}>Support Agent</th>
+                <th style={{ textAlign: 'center' }}>Viewer</th>
               </tr>
             </thead>
             <tbody>
-              {permissionsMatrix.map((row, idx) => (
+              {permissionsMatrix.map((p, idx) => (
                 <tr key={idx}>
-                  <td style={{ fontWeight: 600 }}>{row.feature}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    {row.admin ? <Check size={18} color="#10B981" style={{ margin: '0 auto' }} /> : <X size={18} color="#EF4444" style={{ margin: '0 auto' }} />}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    {row.manager ? <Check size={18} color="#10B981" style={{ margin: '0 auto' }} /> : <X size={18} color="#EF4444" style={{ margin: '0 auto' }} />}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    {row.exec ? <Check size={18} color="#10B981" style={{ margin: '0 auto' }} /> : <X size={18} color="#EF4444" style={{ margin: '0 auto' }} />}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    {row.support ? <Check size={18} color="#10B981" style={{ margin: '0 auto' }} /> : <X size={18} color="#EF4444" style={{ margin: '0 auto' }} />}
-                  </td>
+                  <td style={{ fontWeight: 600, fontSize: '13px' }}>{p.feature}</td>
+                  <td style={{ textAlign: 'center' }}>{p.superAdmin ? <Check size={16} color="#10B981" /> : <X size={16} color="#EF4444" />}</td>
+                  <td style={{ textAlign: 'center' }}>{p.admin ? <Check size={16} color="#10B981" /> : <X size={16} color="#EF4444" />}</td>
+                  <td style={{ textAlign: 'center' }}>{p.manager ? <Check size={16} color="#10B981" /> : <X size={16} color="#EF4444" />}</td>
+                  <td style={{ textAlign: 'center' }}>{p.exec ? <Check size={16} color="#10B981" /> : <X size={16} color="#EF4444" />}</td>
+                  <td style={{ textAlign: 'center' }}>{p.support ? <Check size={16} color="#10B981" /> : <X size={16} color="#EF4444" />}</td>
+                  <td style={{ textAlign: 'center' }}>{p.viewer ? <Check size={16} color="#10B981" /> : <X size={16} color="#EF4444" />}</td>
                 </tr>
               ))}
             </tbody>

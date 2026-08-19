@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useCRM } from '../context/CRMContext';
 import { AuditLogItem } from '../types/crm';
-import { History, Search, ShieldCheck, Filter, Download } from 'lucide-react';
+import { History, Search, ShieldCheck, Filter, Download, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 
 export const AuditLogsPage: React.FC = () => {
   const { auditLogs } = useCRM();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('All');
   const [selectedAction, setSelectedAction] = useState<string>('All');
+  const [selectedSeverity, setSelectedSeverity] = useState<string>('All');
 
   const filteredLogs = auditLogs.filter(log => {
     const matchesSearch = log.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -16,19 +17,20 @@ export const AuditLogsPage: React.FC = () => {
                           log.details.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = selectedRole === 'All' || log.user_role === selectedRole;
     const matchesAction = selectedAction === 'All' || log.action.toLowerCase().includes(selectedAction.toLowerCase());
-    return matchesSearch && matchesRole && matchesAction;
+    const matchesSeverity = selectedSeverity === 'All' || (log.severity || 'INFO') === selectedSeverity;
+    return matchesSearch && matchesRole && matchesAction && matchesSeverity;
   });
 
   const exportAuditCSV = () => {
-    const headers = "ID,Timestamp,User,Role,Action,Target Entity,Details\n";
+    const headers = "ID,Timestamp,User,Role,Action,Target Entity,Details,Before Value,After Value,Severity\n";
     const rows = filteredLogs.map(l => 
-      `"${l.id}","${l.timestamp}","${l.user_name}","${l.user_role}","${l.action}","${l.entity}","${l.details}"`
+      `"${l.id}","${l.timestamp}","${l.user_name}","${l.user_role}","${l.action}","${l.entity.replace(/"/g, '""')}","${l.details.replace(/"/g, '""')}","${l.before_value || ''}","${l.after_value || ''}","${l.severity || 'INFO'}"`
     ).join("\n");
     const blob = new Blob([headers + rows], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `audit-logs-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `nexora-audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
@@ -36,8 +38,8 @@ export const AuditLogsPage: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-            Enterprise Audit Logs & Compliance Trail
+          <h1 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <History size={24} color="var(--accent-blue)" /> Enterprise Audit & Compliance Trail
           </h1>
           <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
             Immutable record of CRM entity modifications, pipeline stage transitions, and AI RAG document uploads.
@@ -46,7 +48,7 @@ export const AuditLogsPage: React.FC = () => {
 
         <button onClick={exportAuditCSV} className="btn btn-secondary btn-sm" title="Export audit trail to CSV">
           <Download size={14} />
-          <span>Export Audit Trail</span>
+          <span>Export Audit Trail (CSV)</span>
         </button>
       </div>
 
@@ -70,10 +72,12 @@ export const AuditLogsPage: React.FC = () => {
           onChange={e => setSelectedRole(e.target.value)}
         >
           <option value="All">All Roles</option>
+          <option value="SUPER_ADMIN">SUPER_ADMIN</option>
           <option value="ADMIN">ADMIN</option>
           <option value="SALES_MANAGER">SALES_MANAGER</option>
           <option value="SALES_EXECUTIVE">SALES_EXECUTIVE</option>
           <option value="SUPPORT_AGENT">SUPPORT_AGENT</option>
+          <option value="VIEWER">VIEWER</option>
         </select>
 
         <select
@@ -86,8 +90,21 @@ export const AuditLogsPage: React.FC = () => {
           <option value="Lead">Lead Actions</option>
           <option value="Deal">Deal Actions</option>
           <option value="Task">Task Actions</option>
+          <option value="Activity">Activities</option>
           <option value="Document">Knowledge Base</option>
-          <option value="Settings">Settings / Admin</option>
+          <option value="Settings">Settings / Security</option>
+        </select>
+
+        <select
+          className="input-control"
+          style={{ width: '140px', fontSize: '13px' }}
+          value={selectedSeverity}
+          onChange={e => setSelectedSeverity(e.target.value)}
+        >
+          <option value="All">All Severities</option>
+          <option value="INFO">INFO</option>
+          <option value="WARNING">WARNING</option>
+          <option value="CRITICAL">CRITICAL</option>
         </select>
       </div>
 
@@ -99,22 +116,48 @@ export const AuditLogsPage: React.FC = () => {
               <th>User & Role</th>
               <th>Action</th>
               <th>Target Entity</th>
-              <th>Detailed Modification Trail</th>
+              <th>Mutation Details</th>
+              <th>Before → After</th>
+              <th>Severity</th>
             </tr>
           </thead>
           <tbody>
             {filteredLogs.map(log => (
               <tr key={log.id}>
-                <td style={{ fontSize: '12.5px', whiteSpace: 'nowrap' }}>{log.timestamp}</td>
-                <td>
-                  <div style={{ fontWeight: 700 }}>{log.user_name}</div>
-                  <span className="badge badge-primary" style={{ fontSize: '10.5px' }}>{log.user_role}</span>
+                <td style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                  {log.timestamp}
                 </td>
                 <td>
-                  <span className="badge badge-low" style={{ fontWeight: 600 }}>{log.action}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 600, fontSize: '13px' }}>{log.user_name}</span>
+                    <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>{log.user_role}</span>
+                  </div>
                 </td>
-                <td style={{ fontWeight: 600 }}>{log.entity}</td>
-                <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{log.details}</td>
+                <td>
+                  <span className="badge badge-normal" style={{ fontSize: '11px' }}>
+                    {log.action}
+                  </span>
+                </td>
+                <td style={{ fontWeight: 500, fontSize: '13px', maxWidth: '180px' }}>
+                  {log.entity}
+                </td>
+                <td style={{ fontSize: '12.5px', color: 'var(--text-secondary)', maxWidth: '280px' }}>
+                  {log.details}
+                </td>
+                <td style={{ fontSize: '11.5px' }}>
+                  {log.before_value || log.after_value ? (
+                    <span>
+                      <span style={{ color: '#EF4444' }}>{log.before_value || 'None'}</span> → <span style={{ color: '#10B981', fontWeight: 600 }}>{log.after_value || 'None'}</span>
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--text-secondary)' }}>—</span>
+                  )}
+                </td>
+                <td>
+                  <span className={`badge ${log.severity === 'WARNING' || log.severity === 'CRITICAL' ? 'badge-urgent' : 'badge-low'}`} style={{ fontSize: '10.5px' }}>
+                    {log.severity || 'INFO'}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>

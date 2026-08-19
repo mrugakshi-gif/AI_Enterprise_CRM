@@ -1,13 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCRM } from '../context/CRMContext';
-import { AIChatMessage } from '../types/crm';
+import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
 import { 
   Bot, Send, Sparkles, FileText, CheckCircle2, AlertTriangle, 
   ArrowRight, Plus, RefreshCw, CornerDownLeft, ShieldCheck, ExternalLink,
-  Check, User, Building2, TrendingUp, Calendar, Clock
+  Check, User, Building2, TrendingUp, Calendar, Clock, CheckSquare
 } from 'lucide-react';
+
+interface AIChatMessage {
+  id: string;
+  sender: 'user' | 'ai';
+  text: string;
+  timestamp: string;
+  confidence?: number;
+  sources?: any[];
+  crm_records?: any[];
+  recommended_action?: any;
+}
 
 interface AIAssistantPageProps {
   onNavigate: (tab: string) => void;
@@ -16,11 +27,12 @@ interface AIAssistantPageProps {
 export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) => {
   const { user, role } = useAuth();
   const { createTask, createEvent } = useCRM();
+  const { addToast } = useToast();
   const [messages, setMessages] = useState<AIChatMessage[]>([
     {
       id: 'msg-init',
       sender: 'ai',
-      text: `Hello **${user?.name?.split(' ')[0] || 'Kabir'}**! I am your **Nexora AI Knowledge Assistant**.\n\nI have real-time access to your indexed company documents (policies, SLAs, pricing, KYC) and live CRM database records. Ask any question or select a prompt below!`,
+      text: `Hello **${user?.name?.split(' ')[0] || 'User'}**! I am your **Nexora Enterprise AI Knowledge Assistant**.\n\nI have real-time access to indexed company documents (*Enterprise Pricing & Discount Policy*, *SLA Guidelines*, *SOC 2 Compliance*, *GST Invoicing*) and live CRM records. Ask any question below!`,
       timestamp: 'Just now',
       confidence: 1.0
     }
@@ -31,14 +43,12 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const quickQuestions = [
-    "What is our enterprise discount policy?",
-    "What is our refund and cancellation policy?",
-    "What documents are required for customer onboarding?",
-    "Show me all high-value leads in Mumbai.",
-    "Which deals are likely to close this month?",
-    "Which customers are at high churn risk?",
+    "What is the maximum enterprise discount allowed?",
+    "What is the guaranteed uptime SLA and resolution timeline?",
     "Summarize TechNova Solutions.",
-    "Which sales executive has the highest conversion rate?"
+    "What security and data compliance standards do we follow?",
+    "Show me all high-value leads.",
+    "Which deals are currently in Negotiation stage?"
   ];
 
   const scrollToBottom = () => {
@@ -81,9 +91,9 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
       const fallbackAiMsg: AIChatMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: 'ai',
-        text: "I was unable to retrieve a verified answer from the knowledge base. Please ensure the relevant policies and records are indexed.",
+        text: "I couldn't find this information in the company knowledge base. Please ensure the relevant policy document or CRM record is uploaded and indexed.",
         timestamp: 'Just now',
-        confidence: 0.20
+        confidence: 0.15
       };
       setMessages(prev => [...prev, fallbackAiMsg]);
     } finally {
@@ -92,306 +102,313 @@ export const AIAssistantPage: React.FC<AIAssistantPageProps> = ({ onNavigate }) 
   };
 
   const handleConfirmAction = async (msgId: string, action: any) => {
-    if (action.type === 'create_task') {
-      await createTask({
-        title: action.payload?.title || 'AI Recommended Task',
-        customer_name: action.payload?.customer_name || 'Internal Operations',
-        priority: action.payload?.priority || 'Normal',
-        due_date: action.payload?.due_date || new Date(Date.now() + 3 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' '),
-        assigned_to: action.payload?.assigned_to || user?.name || 'Amit Sharma',
-        description: action.payload?.description || 'Task created via AI Assistant confirmation.',
-        is_ai_generated: true
-      });
+    try {
+      if (action.type === 'create_task') {
+        await createTask({
+          title: action.payload?.title || 'AI Recommended Task',
+          customer_name: action.payload?.customer_name || 'Internal Operations',
+          company_id: action.payload?.company_id,
+          priority: action.payload?.priority || 'Normal',
+          due_date: action.payload?.due_date || '22 Aug 2026',
+          assigned_to: action.payload?.assigned_to || user?.name || 'Amit Sharma',
+          description: action.payload?.description || 'Task created via AI Knowledge Assistant',
+          is_ai_generated: true
+        });
+        addToast('Action task created successfully in database!', 'success');
+      } else if (action.type === 'create_event') {
+        await createEvent({
+          title: action.payload?.title || 'AI Booked Meeting',
+          customer_name: action.payload?.customer_name || 'TechNova Solutions',
+          company_id: action.payload?.company_id,
+          event_type: action.payload?.event_type || 'Meeting',
+          date: action.payload?.date || '2026-08-22',
+          time: action.payload?.time || '11:00',
+          duration: action.payload?.duration || '30 mins',
+          attendees: action.payload?.attendees || [user?.name || 'Amit Sharma'],
+          location: action.payload?.location || 'Google Meet',
+          description: action.payload?.description || 'Meeting booked via AI Assistant'
+        });
+        addToast('Meeting scheduled on calendar successfully!', 'success');
+      }
       setConfirmedActionIds(prev => ({ ...prev, [msgId]: true }));
-    } else if (action.type === 'schedule_meeting') {
-      await createEvent({
-        title: action.payload?.title || 'Meeting with Customer',
-        customer_name: action.payload?.customer_name || 'Client',
-        event_type: action.payload?.event_type || 'Meeting',
-        date: action.payload?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        time: action.payload?.time || '11:00 AM',
-        duration: action.payload?.duration || '30 mins',
-        location: action.payload?.location || 'Google Meet',
-        description: 'Scheduled via AI Assistant confirmation.'
-      });
-      setConfirmedActionIds(prev => ({ ...prev, [msgId]: true }));
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to execute action', 'error');
     }
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', gap: '16px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="page-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 70px)' }}>
+      {/* Top Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '8px',
-              backgroundColor: '#2563EB',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF'
-            }}>
-              <Bot size={18} />
-            </div>
-            <h1 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              AI Knowledge & CRM Assistant
-            </h1>
-          </div>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            Multi-source grounding over internal company policy documents (RAG) and live CRM database records.
+          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Bot size={22} color="var(--accent-blue)" /> Intelligent Company Knowledge Assistant
+          </h1>
+          <p className="page-subtitle">
+            RAG knowledge retrieval with source citations, document permissions, and 1-click CRM action execution.
           </p>
         </div>
-
-        <button
-          onClick={() => setMessages([messages[0]])}
-          className="btn btn-secondary btn-sm"
-          style={{ gap: '6px' }}
-        >
-          <RefreshCw size={13} />
-          <span>Reset Chat</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="badge badge-low" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <ShieldCheck size={13} /> Active Role: {role}
+          </span>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('knowledge')}>
+            Knowledge Docs
+          </button>
+        </div>
       </div>
 
-      {/* Chat Messages Container */}
+      {/* Main Chat Box */}
       <div className="card" style={{
         flex: 1,
-        overflowY: 'auto',
-        padding: '24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '20px',
-        backgroundColor: 'var(--bg-app)'
+        overflow: 'hidden',
+        padding: 0
       }}>
-        {messages.map(msg => (
-          <div
-            key={msg.id}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '85%',
-              alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start'
-            }}
-          >
-            {/* Sender tag */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              marginBottom: '6px',
-              fontSize: '12px',
-              color: 'var(--text-muted)'
-            }}>
-              {msg.sender === 'ai' ? (
-                <>
-                  <Bot size={14} color="var(--accent-blue)" />
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Nexora AI Assistant</span>
-                  {msg.confidence !== undefined && (
-                    <span 
-                      style={{
-                        padding: '1px 6px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        backgroundColor: msg.confidence >= 0.8 ? 'rgba(5, 150, 105, 0.12)' : 'rgba(217, 119, 6, 0.12)',
-                        color: msg.confidence >= 0.8 ? 'var(--accent-emerald)' : 'var(--accent-amber)'
-                      }}
-                      title="Computed grounding match quality against knowledge base chunks or structured CRM tables"
-                    >
-                      Grounding Score: {Math.round(msg.confidence * 100)}%
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span style={{ fontWeight: 600 }}>You</span>
-              )}
-            </div>
-
-            {/* Message Bubble */}
-            <div style={{
-              padding: '14px 18px',
-              borderRadius: '14px',
-              backgroundColor: msg.sender === 'user' ? 'var(--primary)' : 'var(--bg-card)',
-              color: msg.sender === 'user' ? 'var(--text-inverse)' : 'var(--text-primary)',
-              border: msg.sender === 'user' ? 'none' : '1px solid var(--border-color)',
-              boxShadow: 'var(--shadow-xs)',
-              fontSize: '14px',
-              lineHeight: 1.6,
-              whiteSpace: 'pre-wrap'
-            }}>
-              {msg.text}
-            </div>
-
-            {/* CRM Record Cards Preview */}
-            {msg.crm_records && msg.crm_records.length > 0 && (
-              <div style={{
-                marginTop: '12px',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '10px',
-                width: '100%'
-              }}>
-                {msg.crm_records.map((rec, i) => (
-                  <div
-                    key={i}
-                    className="card"
-                    style={{
-                      padding: '12px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      background: 'var(--bg-card)'
-                    }}
-                  >
-                    <div>
-                      <span className="badge badge-accent" style={{ fontSize: '10px' }}>{rec.type}</span>
-                      <h5 style={{ fontSize: '13px', fontWeight: 700, marginTop: '4px' }}>{rec.title}</h5>
-                      <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>{rec.subtitle}</span>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <strong style={{ fontSize: '12.5px' }}>{rec.value}</strong>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ACTION CONFIRMATION CARD */}
-            {msg.recommended_action && (
-              <div style={{
-                marginTop: '12px',
-                padding: '14px 16px',
-                borderRadius: '10px',
-                background: confirmedActionIds[msg.id] ? 'rgba(5, 150, 105, 0.08)' : 'linear-gradient(135deg, rgba(37, 99, 235, 0.06) 0%, rgba(124, 58, 237, 0.06) 100%)',
-                border: confirmedActionIds[msg.id] ? '1px solid rgba(5, 150, 105, 0.3)' : '1px solid rgba(37, 99, 235, 0.25)',
-                width: '100%',
+        {/* Messages Stream */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px'
+        }}>
+          {messages.map(msg => (
+            <div
+              key={msg.id}
+              style={{
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
                 gap: '12px'
+              }}
+            >
+              {msg.sender === 'ai' && (
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Sparkles size={18} />
+                </div>
+              )}
+
+              <div style={{
+                maxWidth: '750px',
+                background: msg.sender === 'user' ? 'var(--accent-blue)' : 'var(--bg-muted)',
+                color: msg.sender === 'user' ? '#fff' : 'var(--text-primary)',
+                padding: '16px 20px',
+                borderRadius: 'var(--radius-lg)',
+                fontSize: '13.5px',
+                lineHeight: 1.6,
+                boxShadow: msg.sender === 'user' ? '0 2px 8px rgba(37, 99, 235, 0.2)' : 'none',
+                border: msg.sender === 'ai' ? '1px solid var(--border-color)' : 'none'
               }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Sparkles size={14} color={confirmedActionIds[msg.id] ? 'var(--accent-emerald)' : 'var(--accent-blue)'} />
-                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: confirmedActionIds[msg.id] ? 'var(--accent-emerald)' : 'var(--accent-blue)' }}>
-                      {confirmedActionIds[msg.id] ? 'Action Executed' : 'Suggested Action'}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '13px', fontWeight: 600, marginTop: '2px', color: 'var(--text-primary)' }}>
-                    {msg.recommended_action.payload?.title || msg.recommended_action.label}
-                  </p>
-                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    Target: {msg.recommended_action.payload?.customer_name || 'CRM'} • Priority: {msg.recommended_action.payload?.priority || 'Normal'}
-                  </p>
+                <div style={{ whiteSpace: 'pre-wrap' }}>
+                  {msg.text}
                 </div>
 
-                <div>
-                  {confirmedActionIds[msg.id] ? (
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Check size={14} /> Added to Tasks
-                    </span>
-                  ) : (
+                {/* Sources / Citations */}
+                {msg.sources && msg.sources.length > 0 && (
+                  <div style={{
+                    marginTop: '16px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FileText size={12} /> Verified Citations & Policy Sources:
+                    </div>
+                    {msg.sources.map((src, idx) => (
+                      <div key={idx} style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <span style={{ fontWeight: 600, color: 'var(--accent-blue)' }}>{src.title}</span>
+                          <span style={{ color: 'var(--text-secondary)' }}> • Page {src.page} ({src.category})</span>
+                        </div>
+                        <span className="badge badge-low" style={{ fontSize: '10.5px' }}>
+                          Grounding: {Math.round((src.score || 0.85) * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Runnable Recommended Action */}
+                {msg.recommended_action && (
+                  <div style={{
+                    marginTop: '14px',
+                    background: 'var(--bg-card)',
+                    border: '1px solid rgba(37, 99, 235, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Sparkles size={16} color="var(--accent-blue)" />
+                      <span style={{ fontSize: '12.5px', fontWeight: 600 }}>
+                        {msg.recommended_action.payload?.title || msg.recommended_action.label}
+                      </span>
+                    </div>
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => handleConfirmAction(msg.id, msg.recommended_action)}
+                      disabled={confirmedActionIds[msg.id]}
+                      style={{ fontSize: '12px' }}
                     >
-                      <Plus size={13} /> {msg.recommended_action.label || 'Confirm & Create'}
+                      {confirmedActionIds[msg.id] ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Check size={13} /> Executed
+                        </span>
+                      ) : (
+                        msg.recommended_action.label || 'Execute Action'
+                      )}
                     </button>
-                  )}
+                  </div>
+                )}
+
+                <div style={{
+                  fontSize: '10.5px',
+                  color: msg.sender === 'user' ? 'rgba(255, 255, 255, 0.7)' : 'var(--text-secondary)',
+                  marginTop: '8px',
+                  textAlign: 'right'
+                }}>
+                  {msg.timestamp}
                 </div>
               </div>
-            )}
 
-            {/* Grounding Source Citations */}
-            {msg.sources && msg.sources.length > 0 && (
-              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-                  Grounding Sources & Citations
-                </span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {msg.sources.map((src, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border-color)',
-                        fontSize: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                      title={src.snippet}
-                    >
-                      <FileText size={12} color="var(--accent-blue)" />
-                      <strong>{src.title}</strong>
-                      {src.page && <span style={{ color: 'var(--text-muted)' }}>(Page {src.page})</span>}
-                    </div>
-                  ))}
+              {msg.sender === 'user' && (
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-muted)',
+                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  flexShrink: 0
+                }}>
+                  {user?.name?.charAt(0) || 'U'}
                 </div>
+              )}
+            </div>
+          ))}
+
+          {loading && (
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Sparkles size={18} />
               </div>
-            )}
-          </div>
-        ))}
+              <div style={{
+                background: 'var(--bg-muted)',
+                padding: '14px 18px',
+                borderRadius: 'var(--radius-lg)',
+                fontSize: '13px',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <RefreshCw size={14} className="animate-spin" /> Querying knowledge base & verifying policy citations...
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
-        {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '13px' }}>
-            <Sparkles size={16} color="var(--accent-blue)" style={{ animation: 'spin 1.5s linear infinite' }} />
-            <span>Consulting internal knowledge base and active CRM data...</span>
-          </div>
-        )}
+        {/* Quick Prompts Bar */}
+        <div style={{
+          padding: '10px 20px',
+          borderTop: '1px solid var(--border-color)',
+          background: 'var(--bg-card)',
+          display: 'flex',
+          gap: '8px',
+          overflowX: 'auto',
+          whiteSpace: 'nowrap'
+        }}>
+          {quickQuestions.map((q, idx) => (
+            <button
+              key={idx}
+              className="btn btn-ghost btn-sm"
+              onClick={() => handleSend(q)}
+              style={{
+                fontSize: '12px',
+                borderRadius: 'var(--radius-full)',
+                background: 'var(--bg-muted)',
+                border: '1px solid var(--border-color)',
+                padding: '4px 12px'
+              }}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
 
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Suggested Queries Chips */}
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-        {quickQuestions.map((qq, i) => (
-          <button
-            key={i}
-            onClick={() => handleSend(qq)}
-            className="btn btn-secondary btn-sm"
-            style={{ whiteSpace: 'nowrap', fontSize: '12px', padding: '4px 10px' }}
-          >
-            {qq}
-          </button>
-        ))}
-      </div>
-
-      {/* Input Area */}
-      <div style={{
-        display: 'flex',
-        gap: '10px',
-        alignItems: 'center'
-      }}>
-        <div style={{ position: 'relative', flex: 1 }}>
+        {/* Input Bar */}
+        <div style={{
+          padding: '14px 20px',
+          borderTop: '1px solid var(--border-color)',
+          background: 'var(--bg-card)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
           <input
             type="text"
-            className="input-control"
-            placeholder="Ask anything about enterprise discounts, SLA terms, high-value leads, deals closing..."
+            className="form-control"
+            placeholder="Ask about company pricing, SLAs, security standards, or CRM accounts..."
             value={inputQuery}
             onChange={e => setInputQuery(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') handleSend();
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
             }}
             disabled={loading}
-            style={{ paddingRight: '40px', fontSize: '13.5px' }}
+            style={{ flex: 1, height: '42px', fontSize: '13.5px' }}
           />
+          <button
+            className="btn btn-primary"
+            onClick={() => handleSend()}
+            disabled={!inputQuery.trim() || loading}
+            style={{ height: '42px', padding: '0 18px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Send size={15} /> Send
+          </button>
         </div>
-
-        <button
-          onClick={() => handleSend()}
-          className="btn btn-primary"
-          disabled={loading || !inputQuery.trim()}
-          style={{ height: '42px', padding: '0 18px' }}
-        >
-          <Send size={16} />
-          <span>Send</span>
-        </button>
       </div>
     </div>
   );

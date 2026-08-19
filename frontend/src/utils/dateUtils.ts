@@ -35,6 +35,92 @@ export function formatDateIST(dateInput?: Date | string | null): string {
 }
 
 /**
+ * Format as "19 Aug"
+ */
+export function formatDayMonthShort(dateInput?: Date | string | null): string {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? parseDateString(dateInput) : dateInput;
+  if (!d || isNaN(d.getTime())) return '';
+  const day = d.getDate();
+  const month = MONTH_SHORT[d.getMonth()];
+  return `${day} ${month}`;
+}
+
+/**
+ * Format as "Wed, 19 Aug 2026"
+ */
+export function formatWeekdayDate(dateInput?: Date | string | null): string {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? parseDateString(dateInput) : dateInput;
+  if (!d || isNaN(d.getTime())) return String(dateInput);
+  const weekday = DAYS_SHORT[d.getDay()];
+  const day = d.getDate();
+  const month = MONTH_SHORT[d.getMonth()];
+  const year = d.getFullYear();
+  return `${weekday}, ${day < 10 ? '0' + day : day} ${month} ${year}`;
+}
+
+/**
+ * Returns a relative date label: "Today", "Tomorrow", "In 2 days", "Yesterday", etc.
+ */
+export function getRelativeDateLabel(dateInput?: Date | string | null): string {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? parseDateString(dateInput) : dateInput;
+  if (!d || isNaN(d.getTime())) return '';
+  const today = getToday();
+  const dMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const diffTime = dMidnight.getTime() - todayMidnight.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays === -1) return 'Yesterday';
+  if (diffDays > 1 && diffDays < 7) return `In ${diffDays} days`;
+  if (diffDays >= 7) return `In ${Math.round(diffDays / 7)} weeks`;
+  if (diffDays < -1) return `${Math.abs(diffDays)} days ago`;
+  return formatDateIST(d);
+}
+
+/**
+ * Computes time range string like "02:30 PM – 03:30 PM"
+ */
+export function formatTimeRange(timeStr?: string, durationStr?: string): string {
+  if (!timeStr) return '';
+  if (!durationStr) return timeStr;
+  
+  // Try to parse timeStr like "02:30 PM" or "10:00 AM"
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return durationStr ? `${timeStr} (${durationStr})` : timeStr;
+
+  let [_, hoursStr, minsStr, ampm] = match;
+  let hours = parseInt(hoursStr, 10);
+  let mins = parseInt(minsStr, 10);
+  if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+  if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+
+  // Parse duration like "30 mins", "45 mins", "60 mins"
+  const durMatch = durationStr.match(/(\d+)\s*(min|hr|hour)/i);
+  let durationMins = 45; // default
+  if (durMatch) {
+    const val = parseInt(durMatch[1], 10);
+    const unit = durMatch[2].toLowerCase();
+    durationMins = unit.startsWith('hr') || unit.startsWith('hour') ? val * 60 : val;
+  }
+
+  const totalEndMins = hours * 60 + mins + durationMins;
+  const endHours24 = Math.floor(totalEndMins / 60) % 24;
+  const endMins = totalEndMins % 60;
+
+  const endAmpm = endHours24 >= 12 ? 'PM' : 'AM';
+  let endHours12 = endHours24 % 12;
+  if (endHours12 === 0) endHours12 = 12;
+
+  const endStr = `${endHours12 < 10 ? '0' + endHours12 : endHours12}:${endMins < 10 ? '0' + endMins : endMins} ${endAmpm}`;
+  return `${timeStr} – ${endStr}`;
+}
+
+/**
  * Format as "19 August 2026 • IST (Asia/Kolkata)"
  */
 export function formatDateFullIST(dateInput?: Date | string | null): string {
