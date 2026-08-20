@@ -1,6 +1,7 @@
 import { 
   User, Lead, Contact, Company, Deal, Task, Activity, CalendarEvent, 
-  DocumentItem, NotificationItem, AuditLogItem, DashboardData, AIInsightsData, ReportItem 
+  DocumentItem, NotificationItem, AuditLogItem, DashboardData, AIInsightsData, ReportItem,
+  TaskPriorityQueueResponse, WeekDaySummary, UpcomingActivity
 } from '../types/crm';
 
 const API_BASE = '/api';
@@ -60,9 +61,11 @@ export const api = {
   getMe: () => fetchJSON<User>('/auth/me'),
 
   // Dashboard
-  getDashboard: (params?: { time_range?: string; team?: string; salesperson?: string; industry?: string }) => {
+  getDashboard: (params?: { time_range?: string; custom_start?: string; custom_end?: string; team?: string; salesperson?: string; industry?: string }) => {
     const query = new URLSearchParams();
     if (params?.time_range) query.append('time_range', params.time_range);
+    if (params?.custom_start) query.append('custom_start', params.custom_start);
+    if (params?.custom_end) query.append('custom_end', params.custom_end);
     if (params?.team && params.team !== 'All') query.append('team', params.team);
     if (params?.salesperson && params.salesperson !== 'All') query.append('salesperson', params.salesperson);
     if (params?.industry && params.industry !== 'All') query.append('industry', params.industry);
@@ -262,5 +265,10 @@ export const api = {
     method: 'PUT',
     body: JSON.stringify(updates)
   }),
-  globalSearch: (q: string) => fetchJSON<any>(`/admin/search?q=${encodeURIComponent(q)}`)
+  globalSearch: (q: string) => fetchJSON<any>(`/admin/search?q=${encodeURIComponent(q)}`),
+
+  // Intelligent Priority Queue & Dashboard Schedule
+  getTaskPriorityQueue: () => fetchJSON<TaskPriorityQueueResponse>('/crm/tasks/priority-queue'),
+  getDashboardWeekSummary: () => fetchJSON<{ week_days: WeekDaySummary[] }>('/crm/dashboard/week-summary'),
+  getDashboardUpcomingActivities: (limit: number = 5) => fetchJSON<{ activities: UpcomingActivity[]; total_count: number }>(`/crm/dashboard/upcoming-activities?limit=${limit}`)
 };

@@ -3,15 +3,15 @@ from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from backend.database import db
 
+from backend.services.analytics_service import analytics_service
+
 router = APIRouter(prefix="/api/reports", tags=["Reports & Exports"])
 
 @router.get("/list")
 def get_reports():
-    won_deals = [d for d in db.deals if d.get("stage") == "Deal Closed"]
-    open_deals = [d for d in db.deals if d.get("stage") != "Deal Closed"]
-    won_revenue = sum(d["deal_value"] for d in won_deals)
-    pipeline_total = sum(d["deal_value"] for d in open_deals)
-    win_rate = round(len(won_deals) / len(db.deals) * 100, 1) if db.deals else 0
+    rev_metrics = analytics_service.get_revenue_metrics(db.deals)
+    pipe_metrics = analytics_service.get_pipeline_metrics(db.deals)
+    risk_metrics = analytics_service.get_revenue_at_risk_metrics(db.deals, db.companies)
 
     total_leads = len(db.leads)
     qualified_leads = len([l for l in db.leads if l.get("status") in ["Qualified", "Proposal", "Converted"]])
@@ -24,9 +24,9 @@ def get_reports():
             "category": "Sales",
             "description": "Comprehensive analysis of won deals, pipeline velocity, and conversion by stage in ₹ Lakhs.",
             "metrics": {
-                "won_revenue": f"₹{won_revenue/100000:.1f} L",
-                "pipeline_total": f"₹{pipeline_total/100000:.1f} L",
-                "win_rate": f"{win_rate}%"
+                "won_revenue": rev_metrics["won_revenue_formatted"],
+                "pipeline_total": pipe_metrics["active_pipeline_formatted"],
+                "win_rate": rev_metrics["win_rate"]
             },
             "generated_date": datetime.now().strftime("%d %b %Y"),
             "export_format": "PDF / CSV"
@@ -63,7 +63,7 @@ def get_reports():
             "category": "Finance",
             "description": "Fiscal year-to-date collections, GST reconciliation status, and Q3 revenue runway.",
             "metrics": {
-                "weighted_pipeline": f"₹{sum(d['deal_value'] * d.get('probability', 50) / 100 for d in open_deals)/100000:.1f} L",
+                "weighted_pipeline": pipe_metrics["weighted_forecast_formatted"],
                 "q3_target": "₹1.50 Cr",
                 "runway_confidence": "91%"
             },

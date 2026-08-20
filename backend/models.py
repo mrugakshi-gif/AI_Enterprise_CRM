@@ -24,6 +24,8 @@ class DealStage(str, Enum):
     QUALIFIED = "Qualified"
     PROPOSAL_SENT = "Proposal Sent"
     NEGOTIATION = "Negotiation"
+    CLOSED_WON = "Closed Won"
+    CLOSED_LOST = "Closed Lost"
     DEAL_CLOSED = "Deal Closed"
 
 class TaskStatus(str, Enum):
@@ -152,6 +154,7 @@ class Deal(BaseModel):
     days_since_last_activity: Optional[int] = 3
     contact_name: Optional[str] = None
     contact_id: Optional[str] = None
+    lost_reason: Optional[str] = None
 
 class Task(BaseModel):
     id: str  # MDS-39

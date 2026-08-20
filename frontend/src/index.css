@@ -451,20 +451,29 @@ a {
   transform: rotate(-90deg);
 }
 
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-  .sidebar {
-    position: fixed;
-    left: -280px;
-    top: 0;
-    bottom: 0;
-    width: 260px;
-    z-index: 50;
-  }
-  .sidebar.mobile-open {
-    left: 0;
-  }
-  .content-area {
-    padding: 16px;
-  }
+/* Kanban Board & Column Overflow */
+.kanban-board {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  width: 100%;
+  max-width: 100%;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kanban-column {
+  min-width: 280px;
+  max-width: 280px;
+  flex: 0 0 280px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
 }

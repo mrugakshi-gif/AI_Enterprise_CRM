@@ -2,7 +2,7 @@ export type UserRole = "SUPER_ADMIN" | "ADMIN" | "SALES_MANAGER" | "SALES_EXECUT
 
 export type LeadStatus = "New" | "Contacted" | "Qualified" | "Proposal" | "Unqualified" | "Converted";
 
-export type DealStage = "Contacted" | "Qualified" | "Proposal Sent" | "Negotiation" | "Deal Closed";
+export type DealStage = "Contacted" | "Qualified" | "Proposal Sent" | "Negotiation" | "Deal Closed" | "Closed Won" | "Closed Lost";
 
 export type TaskStatus = "Backlog" | "In progress" | "Validation" | "Done";
 
@@ -139,10 +139,11 @@ export interface Deal {
   risk_factor?: string;
   ai_recommendation?: string;
   ai_evidence_reasons?: string[];
-  created_at: string;
-  last_updated: string;
+  created_at?: string;
+  last_updated?: string;
   contact_name?: string;
   contact_id?: string;
+  lost_reason?: string;
 }
 
 export interface Task {
@@ -266,10 +267,14 @@ export interface DashboardData {
     revenue_at_risk_inr: number;
     revenue_at_risk_formatted: string;
     high_risk_deals_count: number;
+    risk_percentage_of_pipeline?: string;
     open_tasks_count: number;
     overdue_tasks_count: number;
     upcoming_activities_count: number;
 
+    date_range_label?: string;
+    time_range?: string;
+    
     // Backward compatibility fields
     total_customers?: number;
     total_customers_trend?: string;
@@ -281,6 +286,8 @@ export interface DashboardData {
     won_revenue_trend?: string;
     total_tasks_open?: number;
   };
+  date_range_label?: string;
+  time_range?: string;
   ai_action_center: {
     id: string;
     category: string;
@@ -311,9 +318,14 @@ export interface DashboardData {
     actual_revenue_formatted: string;
     weighted_forecast_inr: number;
     weighted_forecast_formatted: string;
-    gap_inr: number;
-    gap_formatted: string;
+    total_projected_inr?: number;
+    total_projected_formatted?: string;
+    gap_inr?: number;
+    gap_formatted?: string;
+    gap_or_surplus_inr?: number;
+    gap_or_surplus_formatted?: string;
     status: string;
+    status_text?: string;
   };
   revenue_trend: {
     period: string;
@@ -451,3 +463,60 @@ export interface ReportItem {
   generated_date: string;
   export_format: string;
 }
+
+// ── Intelligent Task Priority Engine Types ─────────────────────────────────
+
+export type PriorityLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MINIMAL';
+
+export interface ScoreBreakdownFactor {
+  factor: string;
+  contribution: number;
+  reason: string;
+}
+
+export interface TaskPriority {
+  task_id: string;
+  priority_score: number;
+  priority_level: PriorityLevel;
+  priority_color: string;
+  priority_icon: string;
+  score_breakdown: ScoreBreakdownFactor[];
+  revenue_impact_inr: number;
+  revenue_impact_formatted: string;
+  deal_name?: string;
+  company_name?: string;
+  risk_score?: number;
+  risk_evidence?: string[];
+  recommended_action?: string;
+  ai_recommended_deadline?: string;
+}
+
+export interface EnrichedTask extends Task, TaskPriority {}
+
+export interface TaskPriorityQueueResponse {
+  tasks: EnrichedTask[];
+  summary: Record<PriorityLevel, number>;
+}
+
+export interface WeekDaySummary {
+  day_name: string;
+  day_label: string;
+  date_iso: string;
+  is_today: boolean;
+  event_count: number;
+  activity_count: number;
+  total: number;
+}
+
+export interface UpcomingActivity {
+  id: string;
+  title: string;
+  event_type: string;
+  date: string;
+  time: string;
+  customer_name: string;
+  location?: string;
+  deal_value_formatted?: string;
+  risk_score?: number;
+}
+

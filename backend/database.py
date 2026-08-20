@@ -203,7 +203,8 @@ class CRMDatabase:
         # 5. 100 Deals (2 per company, including exact benchmark TechNova ₹8.4L)
         self.deals = []
         deal_counter = 1
-        stages_pool = ["Contacted", "Qualified", "Proposal Sent", "Negotiation", "Deal Closed"]
+        stages_pool = ["Contacted", "Qualified", "Proposal Sent", "Negotiation", "Closed Won", "Closed Lost"]
+        lost_reasons_pool = ["Price", "Competitor", "Budget", "Timing", "No Response", "Product Fit", "Other"]
         
         for comp in self.companies:
             comp_deals = []
@@ -243,13 +244,49 @@ class CRMDatabase:
                         "created_at": "01 Jul 2026",
                         "last_updated": (datetime.now() - timedelta(days=18)).strftime("%d %b %Y"),
                         "contact_name": "Rahul Sharma (CTO)",
-                        "contact_id": comp["contact_ids"][0] if comp["contact_ids"] else "con-1"
+                        "contact_id": comp["contact_ids"][0] if comp["contact_ids"] else "con-1",
+                        "lost_reason": None
                     }
                 else:
                     stage = stages_pool[(deal_counter * 2 + d_idx) % len(stages_pool)]
                     val = round(float(random.choice([250000, 380000, 450000, 620000, 750000, 920000, 1200000, 1850000, 2400000, 3500000])), 2)
-                    prob = 100 if stage == "Deal Closed" else (80 if stage == "Negotiation" else (60 if stage == "Proposal Sent" else (40 if stage == "Qualified" else 25)))
-                    risk = 15 if stage == "Deal Closed" else (70 if d_idx == 1 and deal_counter % 3 == 0 else 30)
+                    
+                    # Distributed closed dates for period filtering QA
+                    if deal_counter % 12 in (0, 1):
+                        closed_days_ago = 0  # Today
+                    elif deal_counter % 12 in (2, 3, 4):
+                        closed_days_ago = random.randint(1, 4)  # This Week
+                    elif deal_counter % 12 in (5, 6, 7):
+                        closed_days_ago = random.randint(5, 18)  # This Month
+                    elif deal_counter % 12 in (8, 9):
+                        closed_days_ago = random.randint(20, 45)  # Q3 / Earlier this quarter
+                    else:
+                        closed_days_ago = random.randint(60, 150)  # Q2 / Q1 2026
+
+                    closed_date_dt = datetime.now() - timedelta(days=closed_days_ago)
+                    closed_date_str = closed_date_dt.strftime("%d %b %Y")
+
+                    if stage in ["Closed Won", "Deal Closed"]:
+                        prob = 100
+                        risk = 10
+                        lost_r = None
+                    elif stage in ["Closed Lost", "Lost"]:
+                        prob = 0
+                        risk = 95
+                        lost_r = lost_reasons_pool[deal_counter % len(lost_reasons_pool)]
+                    elif stage == "Negotiation":
+                        prob = 80
+                        risk = 70 if (d_idx == 1 and deal_counter % 3 == 0) else 30
+                        lost_r = None
+                    elif stage == "Proposal Sent":
+                        prob = 60
+                        risk = 40
+                        lost_r = None
+                    else:
+                        prob = 35
+                        risk = 30
+                        lost_r = None
+
                     owner = comp["account_owner"]
                     contact_id = comp["contact_ids"][d_idx % len(comp["contact_ids"])] if comp["contact_ids"] else "con-1"
                     contact_obj = next((c for c in self.contacts if c["id"] == contact_id), None)
@@ -263,7 +300,7 @@ class CRMDatabase:
                         "description": f"Custom deployment of Nexora CRM module for {comp['industry']} operations.",
                         "deal_value": val,
                         "stage": stage,
-                        "expected_close_date": (datetime.now() + timedelta(days=random.randint(5, 60))).strftime("%d %b %Y"),
+                        "expected_close_date": closed_date_str if stage in ["Closed Won", "Deal Closed", "Closed Lost", "Lost"] else (datetime.now() + timedelta(days=random.randint(5, 60))).strftime("%d %b %Y"),
                         "owner": owner,
                         "priority": "Urgent" if val > 1500000 else ("High" if val > 800000 else "Normal"),
                         "probability": prob,
@@ -275,23 +312,25 @@ class CRMDatabase:
                             f"Verified GSTIN {comp['gstin']}",
                             "Positive technical pilot feedback"
                         ],
-                        "risk_factor": "Delayed security review response" if risk > 50 else None,
+                        "risk_factor": "Competitor pricing pressure" if stage == "Closed Lost" else ("Delayed security review response" if risk > 50 else None),
                         "ai_evidence_reasons": [
                             f"Deal active in {stage} for past {random.randint(4, 20)} days",
                             f"Calculated win probability {prob}%",
                             f"Account owner {owner} assigned"
                         ],
                         "ai_recommendation": f"Prepare customized ROI proposal for {comp['name']} procurement board.",
-                        "created_at": "10 Jun 2026",
-                        "last_updated": (datetime.now() - timedelta(days=random.randint(1, 10))).strftime("%d %b %Y"),
+                        "created_at": (closed_date_dt - timedelta(days=30)).strftime("%d %b %Y"),
+                        "last_updated": closed_date_str,
+                        "closed_at": closed_date_str if stage in ["Closed Won", "Deal Closed", "Closed Lost", "Lost"] else None,
                         "contact_name": contact_name,
-                        "contact_id": contact_id
+                        "contact_id": contact_id,
+                        "lost_reason": lost_r
                     }
                 self.deals.append(d_item)
                 comp_deals.append(did)
                 deal_counter += 1
             comp["deal_ids"] = comp_deals
-            comp["active_deals_count"] = len([d for d in comp_deals if next((x for x in self.deals if x["id"] == d), {}).get("stage") != "Deal Closed"])
+            comp["active_deals_count"] = len([d for d in comp_deals if next((x for x in self.deals if x["id"] == d), {}).get("stage") not in ["Closed Won", "Deal Closed", "Closed Lost", "Lost"]])
 
         # 6. 150 Leads (3 per company)
         self.leads = []
@@ -470,9 +509,29 @@ class CRMDatabase:
         for t_idx in range(2, 301):
             comp = self.companies[t_idx % len(self.companies)]
             deal_id = comp["deal_ids"][t_idx % len(comp["deal_ids"])] if comp["deal_ids"] else None
-            status = task_statuses[t_idx % len(task_statuses)]
+            
+            # Realistic status distribution
+            if t_idx % 10 in [0, 1, 2, 3]:
+                status = "In progress"
+            elif t_idx % 10 in [4, 5]:
+                status = "Backlog"
+            elif t_idx % 10 in [6, 7]:
+                status = "Validation"
+            else:
+                status = "Done"
+
             priority = task_priorities[t_idx % len(task_priorities)]
-            days_due = random.randint(-5, 20)
+            
+            # Realistic due date distribution
+            if status == "Done":
+                days_due = random.randint(-15, 0)
+            else:
+                # ~12% overdue open tasks
+                if t_idx % 8 == 0:
+                    days_due = random.randint(-5, -1)
+                else:
+                    days_due = random.randint(1, 30)
+
             due_date = (datetime.now() + timedelta(days=days_due)).strftime("%d %b %Y")
             owner = comp["account_owner"]
 
